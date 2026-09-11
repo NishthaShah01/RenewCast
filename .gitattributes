@@ -1,0 +1,35 @@
+# Normalise line endings so three people on three machines don't generate
+# phantom whole-file diffs. Text is LF in the repo, native in the checkout.
+* text=auto
+
+# Explicitly text
+*.py      text diff=python
+*.ts      text
+*.tsx     text
+*.js      text
+*.jsx     text
+*.json    text
+*.md      text diff=markdown
+*.css     text
+*.html    text
+*.yml     text
+*.yaml    text
+*.toml    text
+*.txt     text
+*.csv     text
+.env.example text
+
+# Shell scripts must stay LF or they break on Linux (Render)
+*.sh      text eol=lf
+
+# Binary — never diff, never convert
+*.pdf     binary
+*.joblib  binary
+*.parquet binary
+*.png     binary
+*.jpg     binary
+*.jpeg    binary
+*.ico     binary
+*.woff    binary
+*.woff2   binary
+*.db      binary

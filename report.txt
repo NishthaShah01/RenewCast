@@ -1,0 +1,239 @@
+PAGES: 9
+==================== PAGE 1 ====================
+ 
+HACKOUT'26 
+RENEWCAST 
+AI Renewable Energy Command Center 
+Forecast. Detect. Recommend. Explain. 
+ 
+ 
+ 
+Problem Statement AI-Powered Renewable Generation 
+Forecasting Platform 
+Theme        Renewable Energy Intelligence 
+Team Name        TriHack 
+Team Members 
+1. Kunj Vaghani 
+2. Laksh Tank 
+3. Nishtha Shah 
+College        L.D. College Of Engineering 
+==================== PAGE 2 ====================
+ 
+1. Problem  
+Solar and wind generation does not stay constant. Weather, time of day and seasonal conditions can change 
+renewable output quickly. That makes it harder for grid operators and utilities to plan backup capacity, storage 
+and power dispatch in advance. The problem statement therefore asks for a system that can forecast 
+renewable output over the next 24–72 hours and flag periods of expected over- or under-generation.  
+ 
+ 
+ 
+Figure 1. The basic operational problem behind the project. 
+ 
+Why this matters 
+ Under-generation can create reliability pressure and increase the need for backup generation. 
+ Over-generation can lead to curtailment or wasted renewable energy. 
+ Late decisions are more expensive than decisions made with a few hours of warning. 
+ Better forecasts support financial planning for utilities, plant owners and energy traders. 
+ 
+ 
+Our interpretation of the problem 
+We are treating forecasting as only the first half of the problem. The useful part is what happens after the 
+forecast: detect the risky periods early, explain the reason, and suggest a practical response. That is the 
+direction we will follow in the prototype. 
+The official problem statement also identifies grid operators, utility companies, renewable plant owners and 
+energy traders as the main users.  
+
+==================== PAGE 3 ====================
+ 
+2. Users and Their Needs 
+User Main need How RenewCast helps 
+Grid operators See supply risk before it becomes a 
+grid problem. 
+Forecast + risk alerts + 
+recommended response. 
+Utility companies Plan backup, storage and operating 
+schedules. 
+24–72 hours outlook with 
+cost/energy impact. 
+Renewable plant owners Understand future production and 
+curtailment risk. 
+Site-level forecast, risk windows and 
+action suggestions. 
+Energy traders Reduce uncertainty in expected 
+renewable supply. 
+Forecast trend, confidence view and 
+major events. 
+ 
+ 
+
+==================== PAGE 4 ====================
+ 
+3. Proposed Solution 
+RenewCast is a web-based AI decision-support platform for renewable generation forecasting. 
+The platform combines historical generation data, site information and, where available, weather 
+features to produce a 24–72 hour forecast. It then identifies risky intervals and suggests an 
+operational response. 
+ 
+ 
+Figure 2. Solution flow. 
+Core idea 
+ 
+Stage What happens 
+1. Forecast Predict solar/wind generation for the next 24, 48 and 72 
+hours. 
+2. Detect Flag under-generation, over-generation and unusual 
+forecast behaviour. 
+3. Decide Rank possible actions such as battery dispatch, demand 
+shifting, curtailment or backup activation. 
+4. Quantify Estimate the effect on energy, backup requirement, cost 
+and CO₂. 
+5. Explain Use the AI assistant to explain the result in plain 
+language and answer operator questions. 
+ 
+The official problem statement explicitly asks for forecasting, over/under-generation alerts and 
+recommended grid actions. Our added decision and explanation layers are meant to make the 
+prototype more useful and more distinctive.  
+
+==================== PAGE 5 ====================
+ 
+4. Problem-Solving Approach 
+Step 1 - Data preparation 
+ Read historical time-series generation data and timestamps. 
+ Check missing values, duplicates and unusual readings. 
+ Create a clean table indexed by time and renewable site. 
+ 
+Step 2 - Feature engineering 
+ Recent generation values (lag features). 
+ Rolling mean / rolling variation to capture short-term trends. 
+ Hour, day and month features to capture daily and seasonal behaviour. 
+ Weather variables will be integrated as model inputs where a suitable site-level source is available. 
+ 
+Step 3 - Forecasting model 
+The first model will use XGBoost or LightGBM because both are practical for a short hackathon cycle and 
+work well with engineered tabular/time-series features. We will also keep a simple baseline so that the 
+team can compare whether the ML model actually improves the forecast. 
+ 
+Step 4 - Risk and action layer 
+The forecast is converted into operational events. Examples are a predicted deficit during an evening 
+period or a surplus during a high-solar window. Each event is assigned a severity and mapped to one or 
+more possible actions. 
+ 
+Step 5 - Decision explanation 
+Gemini will receive the already-calculated forecast, risk and action data. It will explain the result, 
+summarize the reason and answer “what-if” questions. The LLM will not be responsible for producing the 
+core numerical forecast. 
+ 
+ 
+Figure 3 AI/ML pipeline. 
+
+==================== PAGE 6 ====================
+ 
+The implementation is intentionally layered: the forecast model produces the numerical prediction, the 
+decision engine identifies operational risk and ranks actions, and the LLM is used only to explain already-
+calculated results and answer operator questions. This keeps the core path measurable and testable. 
+Model inputs will be built from recent generation values, rolling statistics and calendar features, with 
+weather variables added when a suitable site-level source is available. The forecasting stage will be 
+evaluated against a simple baseline using MAE and RMSE, with additional error measures considered 
+where appropriate. 
+ 
+5. Key Features 
+ 
+ 
+Figure 4. Early dashboard concept. Values shown are illustrative for the prototype. 
+ 
+24–72 hour forecasting: A clear forecast view with selectable horizons for the selected renewable site. 
+Over / under-generation alerts: Highlight the hours where the predicted output is likely to be above or 
+below expected operating needs. 
+AI action recommendations: Recommend a practical response rather than leaving the user with only a 
+warning. 
+Risk and confidence view: Show the level of concern and how confident the system is about the event. 
+What-if simulator: Change battery capacity, demand shifting or backup availability and see how the 
+outcome changes. 
+Cost + CO₂ impact: Translate operational choices into simple numbers that a user can compare. 
+AI Copilot: Ask questions such as “Why is tomorrow evening risky?” and receive an explanation based on 
+the forecast results. 
+Forecast history: Compare predicted and actual generation so the user can see how the model behaves 
+over time. 
+
+==================== PAGE 7 ====================
+ 
+6. Data and AI/ML Strategy 
+For the first prototype, we are using the public ARPA-E PERFORM dataset available through the U.S. 
+Department of Energy / NREL data ecosystem. The dataset provides time-coincident solar, wind and load data 
+at 5-minute resolution, including actual and forecast time series for several U.S. balancing areas.  
+ 
+Data component Use in our project 
+Generation actuals Primary training target and historical pattern. 
+Time index Align the time-series and generate time-based features. 
+Site metadata Keep forecasts tied to a specific renewable site. 
+Load data (if used) Compare expected renewable supply with system demand. 
+Weather data (optional enhancement) Add external drivers such as temperature, irradiance or wind 
+speed. 
+ 
+Model plan 
+1. Start with a baseline forecast to establish a simple reference point. 
+2. Train XGBoost or LightGBM using lag, rolling and time features. 
+3. Evaluate with MAE, RMSE and MAPE where appropriate. 
+4. Compare 24-hour performance first, then extend the same pipeline to 48 and 72 hours. 
+5. If time allows, add weather features and compare the improvement. 
+ 
+Important AI separation 
+Our numerical layer remains deterministic and testable. The ML model predicts generation. The decision 
+engine calculates risk and ranks actions. Gemini is used for explanation and the conversational interface. This 
+avoids asking the LLM to invent power-generation numbers. 
+ 
+Dataset location note 
+The initial prototype uses U.S. public data because the dataset is available in a clean, high-resolution format. 
+The platform itself is location-agnostic: the data ingestion layer can be replaced later with Indian site or grid 
+data without changing the dashboard and decision logic. 
+Source: ARPA-E PERFORM datasets, National Renewable Energy Laboratory (NREL), public access. 
+https://catalog.data.gov/dataset/arpa-e-perform-datasets 
+==================== PAGE 8 ====================
+ 
+7. Technical Architecture and Technology Stack 
+ 
+ 
+Figure 5. Planned system architecture. 
+ 
+Layer Technology Purpose 
+Frontend Next.js, React, TypeScript Dashboard, charts, forms and simulator. 
+UI Tailwind CSS, shadcn/ui, Framer Motion Clean interface and interaction. 
+Backend Python, FastAPI APIs, validation and business logic. 
+Data / ML Pandas, NumPy, XGBoost / LightGBM Preprocessing, feature engineering and 
+forecasting. 
+AI assistant Gemini API Explanations, summaries and natural-
+language questions. 
+Database Supabase / PostgreSQL User, site, forecast and scenario data. 
+Charts Recharts Forecast, comparison and impact graphs. 
+Deployment Vercel + Render/Railway Simple prototype deployment. 
+ 
+Why this stack 
+The stack is intentionally simple. It keeps the ML work in Python, the interface in a modern React stack, 
+and the LLM isolated behind a backend API. That reduces integration risk within the 30-hour build window. 
+
+==================== PAGE 9 ====================
+ 
+8. What Makes RenewCast Different 
+ 
+Figure 6. The main product-level difference we are targeting. 
+ 
+A forecasting dashboard is useful, but it is not enough to create a strong operational product. Our focus is on 
+the step immediately after the prediction. 
+ 
+Typical forecasting approach RenewCast approach 
+Shows a generation forecast. Shows the forecast and identifies the risky time 
+windows. 
+Leaves the operator to decide.  Suggests a ranked set of actions.  
+Focuses on prediction accuracy. Adds cost, energy, backup and CO ₂ impact. 
+Static dashboard. Interactive what-if simulator. 
+Generic chatbot. LLM grounded in the platform’s own forecast and 
+decision results. 
+ 
+Example 
+Instead of: “Generation may be low tomorrow evening.” 
+RenewCast aims to say: “A deficit is likely from 7–9 PM. Preserve battery charge earlier, shift flexible 
+demand if available, and keep backup as the last option. Here is the estimated effect of each 
+choice.” 
+This decision-first approach is the main idea we will carry into the final prototype and presentation. 
+ 
+
