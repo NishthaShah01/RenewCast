@@ -105,7 +105,6 @@ export const ACTION_LABELS: Record<string, string> = {
   curtail: "Curtail output",
   gas_peaker: "Start gas peaker",
   diesel: "Start diesel backup",
-  hold: "Hold",
 };
 
 export const RISK_LABELS: Record<string, string> = {

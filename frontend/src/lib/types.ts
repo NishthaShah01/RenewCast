@@ -139,8 +139,7 @@ export type ActionType =
   | "battery_discharge"
   | "curtail"
   | "gas_peaker"
-  | "diesel"
-  | "hold";
+  | "diesel";
 
 export interface BlockDecision {
   block: number;

@@ -451,7 +451,7 @@ This is exactly the separation your ideation report specifies, and it is also th
         │                                              │
    GEMINI_API_KEY set?                            not set?
         ▼                                              ▼
- gemini-2.5-flash via REST                   deterministic explainer
+ gemini-3.5-flash-lite via REST               deterministic explainer
  system: "Use ONLY the numbers in            intent router:
  CONTEXT. Never invent or extrapolate.       WHY · WHAT_ACTION · CONFIDENCE
  Cite hour ranges. ≤180 words.               COMPARE · SUMMARY · METRICS
@@ -599,7 +599,7 @@ RENEWCAST/
 **`backend/.env`** (copy from `.env.example`)
 ```ini
 GEMINI_API_KEY=                      # optional — blank ⇒ deterministic explainer
-GEMINI_MODEL=gemini-2.5-flash
+GEMINI_MODEL=gemini-3.5-flash-lite
 ALLOWED_ORIGINS=http://localhost:3000,https://renewcast.vercel.app
 WEATHER_CACHE_TTL_MIN=30
 DEFAULT_HORIZON_HOURS=72

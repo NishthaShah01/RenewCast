@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "check:blocks": "node --test scripts/check-blocks.ts"
+    "check:blocks": "node --test scripts/check-blocks.ts",
+    "check:palette": "node --test scripts/check-palette.ts"
   },
   "dependencies": {
     "next": "16.3.5",

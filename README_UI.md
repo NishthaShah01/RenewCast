@@ -4,10 +4,11 @@
 contract for the system. This one is the build contract for the interface: every token,
 every component, every state, every word.
 
-Nothing in the colour system below is eyeballed. Every value was run through
-`dataviz/scripts/validate_palette.js` against **RenewCast's own surfaces**, and the
-measured ratio is printed beside it. Where a value sits below a threshold, the required
-mitigation is stated as a rule, not a suggestion.
+Nothing in the colour system below is eyeballed. Every value was measured against
+**RenewCast's own surfaces**, and the measured ratio is printed beside it. Where a value
+sits below a threshold, the required mitigation is stated as a rule, not a suggestion.
+`frontend/scripts/check-palette.ts` re-measures every one of those figures against
+`globals.css` on demand — run it with `npm run check:palette`.
 
 ---
 
@@ -234,9 +235,12 @@ Measured against the surface each token actually renders on.
 
 Two consequences worth stating:
 
-- **Muted axis text clears 4.21:1 light / 5.31:1 dark**, comfortably above the 4.5:1 small-text
-  bar in dark and close to it in light — better than the reference palette's 3.50:1. Axis
-  labels are readable, not decorative.
+- **Muted axis text measures 4.21:1 light / 5.31:1 dark.** Dark clears the 4.5:1 small-text
+  bar; light sits just under it — better than the reference palette's 3.50:1, but not a pass.
+  The mitigation is scope: `--ink-muted` is confined to axis ticks, block indices, panel
+  metadata and footnotes — never to a sentence a decision rests on. Anything an operator
+  acts on is `--ink-secondary` at 6.97:1 or `--ink-primary` at 17.50:1. This is a measured
+  exception, not an oversight, and `npm run check:palette` asserts the boundary.
 - **Surface-to-page lift measures 1.08:1 light / 1.11:1 dark.** That is the *entire*
   mechanism for separating a panel from the page. It is why the design can ban box-shadows
   on static content without panels dissolving — the separation is measured, not absent.
@@ -1154,12 +1158,14 @@ Carried from `README_PROJECT.md` §14, narrowed to the ones that change the UI:
       physics forecast, or a flat committed MW per block. Pick one; the band is empty
       without it.
 - [ ] **D3 — Branding.** The palette above is validated and ready to build against. Confirm
-      it, or supply brand hues — in which case they must be re-run through
-      `validate_palette.js` against these surfaces before use. Unvalidated hues forfeit the
+      it, or supply brand hues — in which case they must be re-measured with
+      `npm run check:palette` against these surfaces before use. Unvalidated hues forfeit the
       accessibility guarantees in §5.
 
 ---
 
-*Every contrast ratio, ΔE and colour-blind separation figure in this document was measured
-with `dataviz/scripts/validate_palette.js` against RenewCast's own surfaces — not against
-defaults, and not by eye.*
+*Every contrast ratio in this document was measured against RenewCast's own surfaces — not
+against defaults, and not by eye — and `npm run check:palette` re-measures them from
+`globals.css` on demand. The ΔE and colour-blind separation figures were measured the same
+way at authoring time; the automated check covers the contrast ratios, the token inventory
+and light/dark parity, not the CVD simulation.*

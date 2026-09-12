@@ -182,7 +182,6 @@ ActionType = Literal[
     "curtail",
     "gas_peaker",
     "diesel",
-    "hold",
 ]
 
 

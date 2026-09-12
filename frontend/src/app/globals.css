@@ -6,7 +6,7 @@
    Every value here was measured against RenewCast's own surfaces, not
    inherited from a default palette. Contrast ratios in comments are the
    measured figures; do not change a hex without re-running
-   `node scripts/validate_palette.js`.
+   `npm run check:palette`, which re-measures them from this file.
 
    Chart code binds to ROLES (--series-1, --status-critical), never to raw
    hex, so a mode swap happens in exactly one place.
