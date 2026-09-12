@@ -1,0 +1,253 @@
+@import "tailwindcss";
+
+/* ══════════════════════════════════════════════════════════════════════
+   RenewCast design tokens — README_UI.md §5
+
+   Every value here was measured against RenewCast's own surfaces, not
+   inherited from a default palette. Contrast ratios in comments are the
+   measured figures; do not change a hex without re-running
+   `node scripts/validate_palette.js`.
+
+   Chart code binds to ROLES (--series-1, --status-critical), never to raw
+   hex, so a mode swap happens in exactly one place.
+   ══════════════════════════════════════════════════════════════════════ */
+
+:root {
+  color-scheme: light;
+
+  /* ── Surfaces and ink ─────────────────────────────────────────────── */
+  --page: #f1f3f4;
+  --surface: #fbfcfc; /* 1.08:1 lift over page — the ONLY panel separator */
+  --ink-primary: #10181a; /* 17.50:1 */
+  --ink-secondary: #4c5a5e; /*  6.97:1 */
+  --ink-muted: #6e7c80; /*  4.21:1 */
+  --gridline: #e3e8e9; /*  1.20:1 */
+  --baseline: #c6ced0; /*  1.55:1 */
+  --ring: rgba(16, 24, 26, 0.1);
+
+  /* ── Categorical — FIXED ORDER. Never reorder, never skip a slot. ──
+     The order is the CVD-safety mechanism: adjacent slots were validated
+     for ΔE ≥ 8 under deuteranopia and protanopia in this sequence. Any
+     form that puts every series in mutual comparison (scatter, bubble,
+     map, small multiples) is capped at THREE slots. */
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --de-emphasis: #a9b3b6; /*  2.08:1 */
+
+  /* ── Sequential — one blue ramp, 13 steps ─────────────────────────── */
+  --seq-100: #cde2fb;
+  --seq-150: #b7d3f6;
+  --seq-200: #9ec5f4;
+  --seq-250: #86b6ef; /* ordinal light-end floor — 2.05:1 */
+  --seq-300: #6da7ec;
+  --seq-350: #5598e7;
+  --seq-400: #3987e5;
+  --seq-450: #2a78d6;
+  --seq-500: #256abf;
+  --seq-550: #1c5cab;
+  --seq-600: #184f95;
+  --seq-650: #104281;
+  --seq-700: #0d366b;
+
+  /* ── Diverging — deviation from schedule, neutral at zero ─────────── */
+  --diverge-mid: #e9edee; /*  1.15:1 */
+
+  /* ── Delta text ───────────────────────────────────────────────────── */
+  --delta-pos: #006300; /*  7.34:1 */
+  --delta-neg: #c0392b; /*  5.29:1 */
+
+  /* ── Status — fixed, identical in both modes, never themed, and never
+     a data series. Light warning (1.78:1) and serious (2.57:1) are below
+     3:1 BY DESIGN; the mandatory mitigation is that every status renders
+     as icon + text label + colour. Colour never carries meaning alone. */
+  --status-good: #0ca30c;
+  --status-warning: #fab219;
+  --status-serious: #ec835a;
+  --status-critical: #d03b3b;
+
+  /* Transient overlays ONLY — menus, modals, tooltips. Static content has
+     no shadow; the 1.08:1 surface lift and the 10% ring do that job. */
+  --overlay-shadow: 0 4px 16px rgba(16, 24, 26, 0.14);
+}
+
+/* OS preference. Excluded when the in-app toggle has explicitly chosen
+   light, so the toggle wins in both directions. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --page: #0b1113;
+    --surface: #151d20; /* 1.11:1 lift */
+    --ink-primary: #f3f7f8; /* 15.85:1 */
+    --ink-secondary: #a9b9bd; /*  8.43:1 */
+    --ink-muted: #839297; /*  5.31:1 */
+    --gridline: #263135; /*  1.28:1 */
+    --baseline: #354247; /*  1.65:1 */
+    --ring: rgba(243, 247, 248, 0.1);
+
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --series-4: #c98500;
+    --de-emphasis: #667579; /*  3.57:1 */
+
+    --seq-250: #184f95; /* ordinal dark-end floor — 2.11:1 */
+    --diverge-mid: #2e393c; /*  1.44:1 */
+
+    --delta-pos: #0ca30c; /*  5.10:1 */
+    --delta-neg: #e66767; /*  5.29:1 */
+
+    --overlay-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+  }
+}
+
+/* In-app toggle. Same specificity as the media-query rule above, so it must
+   come LAST to win when the OS says light and the user chose dark. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --page: #0b1113;
+  --surface: #151d20;
+  --ink-primary: #f3f7f8;
+  --ink-secondary: #a9b9bd;
+  --ink-muted: #839297;
+  --gridline: #263135;
+  --baseline: #354247;
+  --ring: rgba(243, 247, 248, 0.1);
+
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --de-emphasis: #667579;
+
+  --seq-250: #184f95;
+  --diverge-mid: #2e393c;
+
+  --delta-pos: #0ca30c;
+  --delta-neg: #e66767;
+
+  --overlay-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   Tailwind theme bridge
+
+   `inline` so the utilities resolve to var() references rather than
+   snapshotting the light values at build time — which is what lets a single
+   :root swap re-theme every utility at runtime.
+   ══════════════════════════════════════════════════════════════════════ */
+
+@theme inline {
+  --color-page: var(--page);
+  --color-surface: var(--surface);
+  --color-ink-primary: var(--ink-primary);
+  --color-ink-secondary: var(--ink-secondary);
+  --color-ink-muted: var(--ink-muted);
+  --color-gridline: var(--gridline);
+  --color-baseline: var(--baseline);
+
+  --color-series-1: var(--series-1);
+  --color-series-2: var(--series-2);
+  --color-series-3: var(--series-3);
+  --color-series-4: var(--series-4);
+  --color-de-emphasis: var(--de-emphasis);
+
+  --color-status-good: var(--status-good);
+  --color-status-warning: var(--status-warning);
+  --color-status-serious: var(--status-serious);
+  --color-status-critical: var(--status-critical);
+
+  --color-delta-pos: var(--delta-pos);
+  --color-delta-neg: var(--delta-neg);
+
+  /* Type — 1.2 scale on a 14px base. A dense operations tool earns a small
+     base; anything larger wastes the column. */
+  --text-11: 11px;
+  --text-11--line-height: 16px;
+  --text-12: 12px;
+  --text-12--line-height: 16px;
+  --text-14: 14px;
+  --text-14--line-height: 20px;
+  --text-17: 17px;
+  --text-17--line-height: 24px;
+  --text-20: 20px;
+  --text-20--line-height: 28px;
+  --text-24: 24px;
+  --text-24--line-height: 32px;
+  --text-34: 34px;
+  --text-34--line-height: 40px;
+  --text-48: 48px;
+  --text-48--line-height: 52px;
+
+  /* Radius varies BY ROLE — one radius on everything is a template tell.
+     Tables, heatmaps and the block spine are square: a rounded corner on a
+     grid cell fights the grid. */
+  --radius-pill: 999px;
+  --radius-modal: 8px;
+  --radius-panel: 6px;
+  --radius-control: 4px;
+
+  --font-sans: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-condensed: var(--font-plex-condensed), var(--font-plex-sans), sans-serif;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   Base
+   ══════════════════════════════════════════════════════════════════════ */
+
+@layer base {
+  html {
+    height: 100%;
+  }
+
+  body {
+    min-height: 100%;
+    background: var(--page);
+    color: var(--ink-primary);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 20px;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Proportional figures are the default — the correct setting for prose and
+     for the hero figure, where tabular spacing looks gappy. Columns opt IN
+     with Tailwind's `tabular-nums`.
+
+     Note this is `font-variant-numeric` on IBM Plex Sans, NOT a switch to a
+     monospace typeface. A mono face for small data labels is the template
+     tell; tabular figures in the text face are simply correct. */
+  :where(body) {
+    font-variant-numeric: proportional-nums;
+  }
+
+  /* Visible keyboard focus on everything focusable. Part of the quality
+     floor, not an afterthought. */
+  :focus-visible {
+    outline: 2px solid var(--series-1);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: var(--seq-250);
+    color: var(--ink-primary);
+  }
+}
+
+/* One orchestrated moment, and nothing else. README_UI.md §15 bans
+   per-section fade-and-slide entrances and hover transitions on every card;
+   both are the generated-page default. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,0 +1,40 @@
+# Render blueprint. Committed so the deployment is reproducible from the repo
+# rather than reconstructed from memory in a dashboard at 3am.
+#
+# The models are committed artefacts, so boot is a file load, not a training
+# run — a cold start is FastAPI importing LightGBM, not fitting it.
+
+services:
+  - type: web
+    name: renewcast-api
+    runtime: python
+    plan: free
+    rootDir: backend
+    region: singapore # Closest to the Indian sites this forecasts.
+
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+
+    # Render sends traffic here before marking a deploy live. /api/health reads
+    # the model bundle, so a green check means the forecaster is loaded, not
+    # merely that the process is accepting sockets.
+    healthCheckPath: /api/health
+
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+
+      # Set in the Render dashboard, never here. Without it the copilot serves
+      # its deterministic explainer, which is a supported mode rather than a
+      # degraded one — the app is fully functional with no key at all.
+      - key: GEMINI_API_KEY
+        sync: false
+
+      - key: GEMINI_MODEL
+        value: gemini-3.5-flash-lite
+
+      # Production origin plus local dev. Vercel preview deploys get a fresh
+      # subdomain per commit, which no static list can anticipate; main.py
+      # matches those by regex instead.
+      - key: ALLOWED_ORIGINS
+        value: https://renewcast.vercel.app,http://localhost:3000

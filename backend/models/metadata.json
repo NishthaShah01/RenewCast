@@ -1,0 +1,101 @@
+{
+  "model_version": "1.0.0",
+  "trained_at": "2026-09-11T23:46:41+00:00",
+  "quantiles": [
+    0.1,
+    0.5,
+    0.9
+  ],
+  "ground_truth": "synthetic plant response over real archived forecast weather",
+  "technologies": {
+    "solar": {
+      "technology": "solar",
+      "rows_train": 673656,
+      "rows_valid": 168420,
+      "features": [
+        "physics_cf",
+        "lead_hours",
+        "temp_c",
+        "humidity",
+        "cloud_pct",
+        "precip_mm",
+        "pressure_pa",
+        "hour_sin",
+        "hour_cos",
+        "doy_sin",
+        "doy_cos",
+        "ghi",
+        "dni",
+        "dhi",
+        "clear_sky_ghi",
+        "clear_sky_index",
+        "solar_elevation",
+        "air_mass",
+        "diffuse_fraction",
+        "ghi_ramp_1h",
+        "cloud_ramp_1h",
+        "clear_sky_index_std_1h",
+        "wind_ms"
+      ],
+      "best_iterations": {
+        "p10": 231,
+        "p50": 17,
+        "p90": 44
+      },
+      "mae_mw_p50": 44.44,
+      "mae_mw_physics_only": 47.47,
+      "nmae_pct_p50": 2.621,
+      "nmae_pct_physics_only": 2.8,
+      "skill_vs_physics_pct": 6.39,
+      "rmse_mw_p50": 117.37,
+      "pi_coverage": 0.8574,
+      "pi_nominal": 0.8,
+      "pi_coverage_error": 0.0574,
+      "mean_interval_width_mw": 114.65
+    },
+    "wind": {
+      "technology": "wind",
+      "rows_train": 449104,
+      "rows_valid": 112280,
+      "features": [
+        "physics_cf",
+        "lead_hours",
+        "temp_c",
+        "humidity",
+        "cloud_pct",
+        "precip_mm",
+        "pressure_pa",
+        "hour_sin",
+        "hour_cos",
+        "doy_sin",
+        "doy_cos",
+        "wind_ms",
+        "wind_100_ms",
+        "gust_ms",
+        "wind_dir_sin",
+        "wind_dir_cos",
+        "shear_ratio",
+        "turbulence_intensity",
+        "air_density",
+        "wind_ramp_1h",
+        "wind_std_1h",
+        "wind_cubed"
+      ],
+      "best_iterations": {
+        "p10": 86,
+        "p50": 22,
+        "p90": 71
+      },
+      "mae_mw_p50": 91.27,
+      "mae_mw_physics_only": 97.94,
+      "nmae_pct_p50": 7.12,
+      "nmae_pct_physics_only": 7.64,
+      "skill_vs_physics_pct": 6.81,
+      "rmse_mw_p50": 139.62,
+      "pi_coverage": 0.8192,
+      "pi_nominal": 0.8,
+      "pi_coverage_error": 0.0192,
+      "mean_interval_width_mw": 294.1
+    }
+  }
+}
