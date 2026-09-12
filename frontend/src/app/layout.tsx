@@ -3,6 +3,7 @@ import { IBM_Plex_Sans, IBM_Plex_Sans_Condensed } from "next/font/google";
 import Link from "next/link";
 
 import { BlockClock } from "@/components/BlockClock";
+import { OfflineBanner } from "@/components/OfflineBanner";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
 import "./globals.css";
@@ -107,6 +108,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             and configurable.
           </p>
         </footer>
+
+        <OfflineBanner />
       </body>
     </html>
   );

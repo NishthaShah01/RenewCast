@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { ForecastChart } from "@/components/ForecastChart";
+import { HorizonSelector } from "@/components/HorizonSelector";
 import { Caveat, Panel, ServiceDown, Stat } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { blockStartLabel } from "@/lib/blocks";
@@ -13,6 +14,7 @@ import {
   percent,
   technologyLabel,
 } from "@/lib/format";
+import { HORIZON_PARAM, parseHorizon } from "@/lib/horizon";
 import type { DecisionResponse, ForecastResponse, Site } from "@/lib/types";
 
 /**
@@ -27,12 +29,17 @@ import type { DecisionResponse, ForecastResponse, Site } from "@/lib/types";
  * fetched separately, because the two must agree. A schedule drawn from one
  * request and deviations computed from another would eventually disagree by a
  * block and nobody would notice.
+ *
+ * The horizon selector governs the forecast request only. The despatch plan is
+ * a document about one despatch day whatever the forecast window is, so its
+ * request stays at 24 h — see `lib/horizon.ts`.
  */
 export default async function SitePage(props: PageProps<"/sites/[siteId]">) {
   const { siteId } = await props.params;
+  const horizon = parseHorizon((await props.searchParams)[HORIZON_PARAM]);
 
   const [forecastResult, decisionsResult] = await Promise.allSettled([
-    api.forecast(siteId, 24),
+    api.forecast(siteId, horizon),
     api.decisions(siteId, 24),
   ]);
 
@@ -91,7 +98,25 @@ export default async function SitePage(props: PageProps<"/sites/[siteId]">) {
 
       <Panel
         title="Forecast"
-        meta={`${today.length} blocks · ${despatchDateLabel(forecast.despatch_date)}`}
+        action={
+          <div className="flex items-baseline gap-3">
+            <span className="text-11 text-ink-muted tabular-nums">
+              {today.length} blocks · {despatchDateLabel(forecast.despatch_date)}
+            </span>
+            <HorizonSelector value={horizon} />
+          </div>
+        }
+        footnote={
+          // The window figure is the backend's own `horizon_hours` echo and the
+          // length of the block list it returned — not a frontend calculation.
+          // The chart stays on today's spine at every horizon, so saying so is
+          // the difference between a control that looks broken and one whose
+          // scope is understood.
+          `Window: ${forecast.horizon_hours} h from issue, ${forecast.blocks.length} blocks returned. ` +
+          `The chart plots the ${today.length} blocks of the current despatch day; ` +
+          `later blocks are in the response and extend the window, not the spine. ` +
+          `The despatch plan below covers one despatch day at every horizon.`
+        }
       >
         <div className="px-4 pb-4 pt-5">
           <ForecastChart
