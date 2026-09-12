@@ -66,7 +66,14 @@ export function DecisionSummary({ decisions }: { decisions: DecisionResponse }) 
               {ACTION_LABELS[lead.action] ?? lead.action}
               <span className="text-ink-secondary">
                 {" · "}
-                {lead.label} · blocks {lead.block_start}&ndash;{lead.block_end}
+                {lead.label} ·{" "}
+                {lead.block_start === lead.block_end ? (
+                  <>block {lead.block_start}</>
+                ) : (
+                  <>
+                    blocks {lead.block_start}&ndash;{lead.block_end}
+                  </>
+                )}
               </span>
             </>
           ) : (
