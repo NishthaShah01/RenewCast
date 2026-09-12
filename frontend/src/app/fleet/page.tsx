@@ -315,6 +315,10 @@ function TechnologyComparison({
   const solarGenPct = totalP50 > 0 ? (solarP50 / totalP50) * 100 : 0;
   const windGenPct = totalP50 > 0 ? (windP50 / totalP50) * 100 : 0;
 
+  // Calm, desaturated power-system operational colours
+  const SOLAR_COLOR = "#C78A00"; // Muted warm amber / ochre
+  const WIND_COLOR = "#4F82B8"; // Muted steel blue
+
   return (
     <Panel
       title="Technology distribution"
@@ -322,68 +326,132 @@ function TechnologyComparison({
       footnote="Solar capacity is concentrated in Rajasthan, Karnataka, and Gujarat; wind capacity spans Tamil Nadu and Rajasthan."
     >
       <div className="flex flex-col gap-5 px-4 py-4">
-        {/* Capacity Breakdown */}
-        <div>
-          <div className="flex items-center justify-between text-12">
-            <span className="font-medium text-ink-primary">Installed Capacity</span>
-            <span className="text-11 text-ink-muted">
-              {mw(solarCapacity)} Solar ({solarCapPct.toFixed(1)}%) ·{" "}
-              {mw(windCapacity)} Wind ({windCapPct.toFixed(1)}%)
-            </span>
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 md:gap-8">
+          {/* Installed Capacity Comparison */}
+          <div className="flex flex-col gap-2.5">
+            <div className="text-12 font-medium text-ink-primary">
+              Installed capacity
+            </div>
+
+            {/* Solar Capacity Row */}
+            <div className="flex items-center gap-3 text-12">
+              <span className="w-12 shrink-0 font-medium text-ink-secondary">
+                Solar
+              </span>
+              <span className="w-12 shrink-0 text-right font-medium tabular-nums text-ink-primary">
+                {solarCapPct.toFixed(1)}%
+              </span>
+              <div className="h-2 flex-1 overflow-hidden rounded-sm bg-[var(--gridline)]">
+                <div
+                  className="h-full rounded-sm"
+                  style={{
+                    width: `${solarCapPct}%`,
+                    backgroundColor: SOLAR_COLOR,
+                  }}
+                />
+              </div>
+              <span className="min-w-[65px] shrink-0 text-right tabular-nums text-ink-muted">
+                {mw(solarCapacity)}
+              </span>
+            </div>
+
+            {/* Wind Capacity Row */}
+            <div className="flex items-center gap-3 text-12">
+              <span className="w-12 shrink-0 font-medium text-ink-secondary">
+                Wind
+              </span>
+              <span className="w-12 shrink-0 text-right font-medium tabular-nums text-ink-primary">
+                {windCapPct.toFixed(1)}%
+              </span>
+              <div className="h-2 flex-1 overflow-hidden rounded-sm bg-[var(--gridline)]">
+                <div
+                  className="h-full rounded-sm"
+                  style={{
+                    width: `${windCapPct}%`,
+                    backgroundColor: WIND_COLOR,
+                  }}
+                />
+              </div>
+              <span className="min-w-[65px] shrink-0 text-right tabular-nums text-ink-muted">
+                {mw(windCapacity)}
+              </span>
+            </div>
           </div>
-          <div className="mt-2 flex h-3.5 w-full overflow-hidden rounded-full bg-[var(--gridline)]">
-            <div
-              style={{ width: `${solarCapPct}%`, background: "var(--series-4)" }}
-              title={`Solar: ${mw(solarCapacity)} (${solarCapPct.toFixed(1)}%)`}
-            />
-            <div
-              style={{ width: `${windCapPct}%`, background: "var(--series-1)" }}
-              title={`Wind: ${mw(windCapacity)} (${windCapPct.toFixed(1)}%)`}
-            />
+
+          {/* Expected Energy Comparison */}
+          <div className="flex flex-col gap-2.5">
+            <div className="text-12 font-medium text-ink-primary">
+              Expected energy (P50)
+            </div>
+
+            {/* Solar Energy Row */}
+            <div className="flex items-center gap-3 text-12">
+              <span className="w-12 shrink-0 font-medium text-ink-secondary">
+                Solar
+              </span>
+              <span className="w-12 shrink-0 text-right font-medium tabular-nums text-ink-primary">
+                {solarGenPct.toFixed(1)}%
+              </span>
+              <div className="h-2 flex-1 overflow-hidden rounded-sm bg-[var(--gridline)]">
+                <div
+                  className="h-full rounded-sm"
+                  style={{
+                    width: `${solarGenPct}%`,
+                    backgroundColor: SOLAR_COLOR,
+                  }}
+                />
+              </div>
+              <span className="min-w-[65px] shrink-0 text-right tabular-nums text-ink-muted">
+                {mwh(solarP50)}
+              </span>
+            </div>
+
+            {/* Wind Energy Row */}
+            <div className="flex items-center gap-3 text-12">
+              <span className="w-12 shrink-0 font-medium text-ink-secondary">
+                Wind
+              </span>
+              <span className="w-12 shrink-0 text-right font-medium tabular-nums text-ink-primary">
+                {windGenPct.toFixed(1)}%
+              </span>
+              <div className="h-2 flex-1 overflow-hidden rounded-sm bg-[var(--gridline)]">
+                <div
+                  className="h-full rounded-sm"
+                  style={{
+                    width: `${windGenPct}%`,
+                    backgroundColor: WIND_COLOR,
+                  }}
+                />
+              </div>
+              <span className="min-w-[65px] shrink-0 text-right tabular-nums text-ink-muted">
+                {mwh(windP50)}
+              </span>
+            </div>
           </div>
         </div>
 
-        {/* Expected Generation Breakdown */}
-        <div>
-          <div className="flex items-center justify-between text-12">
-            <span className="font-medium text-ink-primary">Expected Energy (P50)</span>
-            <span className="text-11 text-ink-muted">
-              {mwh(solarP50)} Solar ({solarGenPct.toFixed(1)}%) ·{" "}
-              {mwh(windP50)} Wind ({windGenPct.toFixed(1)}%)
-            </span>
-          </div>
-          <div className="mt-2 flex h-3.5 w-full overflow-hidden rounded-full bg-[var(--gridline)]">
-            <div
-              style={{ width: `${solarGenPct}%`, background: "var(--series-4)" }}
-              title={`Solar: ${mwh(solarP50)} (${solarGenPct.toFixed(1)}%)`}
-            />
-            <div
-              style={{ width: `${windGenPct}%`, background: "var(--series-1)" }}
-              title={`Wind: ${mwh(windP50)} (${windGenPct.toFixed(1)}%)`}
-            />
-          </div>
-        </div>
-
-        {/* Technology Legend */}
+        {/* Quiet Legend */}
         <div className="flex flex-wrap items-center gap-6 border-t border-[var(--gridline)] pt-3 text-12">
           <div className="flex items-center gap-2">
             <span
-              className="size-2.5 rounded-full"
-              style={{ background: "var(--series-4)" }}
+              className="size-2 rounded-full"
+              style={{ backgroundColor: SOLAR_COLOR }}
+              aria-hidden="true"
             />
             <span className="font-medium text-ink-primary">Solar PV</span>
             <span className="text-11 text-ink-muted">
-              ({solarSitesCount} sites · {mw(solarCapacity)} · {mwh(solarP50)})
+              {solarSitesCount} sites · {mw(solarCapacity)} · {mwh(solarP50)}
             </span>
           </div>
           <div className="flex items-center gap-2">
             <span
-              className="size-2.5 rounded-full"
-              style={{ background: "var(--series-1)" }}
+              className="size-2 rounded-full"
+              style={{ backgroundColor: WIND_COLOR }}
+              aria-hidden="true"
             />
             <span className="font-medium text-ink-primary">Wind</span>
             <span className="text-11 text-ink-muted">
-              ({windSitesCount} sites · {mw(windCapacity)} · {mwh(windP50)})
+              {windSitesCount} sites · {mw(windCapacity)} · {mwh(windP50)}
             </span>
           </div>
         </div>
@@ -561,7 +629,7 @@ function FleetTable({
                       <span
                         className="size-2 rounded-full"
                         style={{
-                          background: isSolar ? "var(--series-4)" : "var(--series-1)",
+                          background: isSolar ? "#C78A00" : "#4F82B8",
                         }}
                       />
                       {technologyLabel(site.technology)}
