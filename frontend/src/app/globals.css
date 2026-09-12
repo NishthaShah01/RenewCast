@@ -238,6 +238,29 @@
   }
 }
 
+/* ── The one user-triggered transition ───────────────────────────────────
+   Switching despatch day replaces the data inside the same chart surface.
+   Without a transition the fan teleports and the eye cannot tell whether the
+   shape changed or the whole chart was replaced; 150 ms of fade is long enough
+   to register as "this is new data in the same place" and short enough not to
+   be a wait.
+
+   This answers a click. It is not an entrance animation — nothing here fades in
+   on load, and the reduced-motion block below neutralises it for anyone who has
+   asked for that. */
+@keyframes rc-day-swap {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.rc-day-swap {
+  animation: rc-day-swap 150ms ease-out;
+}
+
 /* One orchestrated moment, and nothing else. README_UI.md §15 bans
    per-section fade-and-slide entrances and hover transitions on every card;
    both are the generated-page default. */

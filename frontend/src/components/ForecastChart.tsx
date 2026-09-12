@@ -3,6 +3,7 @@
 import { useId, useMemo, useState } from "react";
 
 import { BLOCKS_PER_DAY, blockStartLabel } from "@/lib/blocks";
+import { despatchDateLabel } from "@/lib/format";
 import type { ForecastBlock } from "@/lib/types";
 
 /**
@@ -46,12 +47,26 @@ interface Props {
   blocks: ForecastBlock[];
   capacityMw: number;
   evacuationMw: number;
-  revisionHorizonBlock: number;
-  currentBlock: number;
+  /** Omitted for a future day: there is no revision gate on a day that has
+   *  not started, and drawing one would assert a deadline that does not exist. */
+  revisionHorizonBlock?: number;
+  /** Omitted for a future day — "now" is not on that spine. */
+  currentBlock?: number;
   /** Optional declared-capability curve, keyed by block. Drawn as a stepped
    *  reference line when present. */
   scheduleMw?: Map<number, number>;
   technology: "solar" | "wind";
+  /** Forces the y-scale instead of deriving it from this day's own data. Two
+   *  charts compared side by side must share a ceiling or the taller fan is
+   *  the one with the smaller numbers. */
+  ceilingMw?: number;
+  /** The despatch date, shown in the readout. Only needed where two days are
+   *  on screen at once and "block 49" alone is ambiguous. */
+  date?: string;
+  /** Lifts hover out of the component so two charts can share a block. When
+   *  omitted the chart keeps its own hover state, as it always did. */
+  hoverBlock?: number | null;
+  onHoverBlock?: (block: number | null) => void;
 }
 
 export function ForecastChart({
@@ -62,10 +77,19 @@ export function ForecastChart({
   currentBlock,
   scheduleMw,
   technology,
+  ceilingMw,
+  date,
+  hoverBlock,
+  onHoverBlock,
 }: Props) {
   const gradientId = useId();
   const clipId = useId();
-  const [hover, setHover] = useState<ForecastBlock | null>(null);
+  const [ownHover, setOwnHover] = useState<number | null>(null);
+
+  // Controlled when the parent passes a handler, uncontrolled otherwise.
+  const controlled = onHoverBlock !== undefined;
+  const activeBlock = controlled ? (hoverBlock ?? null) : ownHover;
+  const setHover = controlled ? onHoverBlock : setOwnHover;
 
   const geometry = useMemo(() => {
     // The y-scale is anchored to the evacuation limit, not to the data max.
@@ -74,7 +98,8 @@ export function ForecastChart({
     // hide the one thing the chart exists to show on a high-output day: that
     // the forecast is approaching a hard export ceiling. A fixed ceiling means
     // the height of the fan is comparable across days and across sites.
-    const ceiling = Math.max(evacuationMw, ...blocks.map((b) => b.p90)) * 1.06;
+    const ceiling =
+      ceilingMw ?? Math.max(evacuationMw, ...blocks.map((b) => b.p90)) * 1.06;
 
     const x = (block: number) =>
       PAD.left + ((block - 1) / (BLOCKS_PER_DAY - 1)) * PLOT_W;
@@ -90,7 +115,7 @@ export function ForecastChart({
     const band = `M${upper.join(" L")} L${lower.join(" L")} Z`;
 
     return { ceiling, x, y, band, p50: line((b) => b.p50), physics: line((b) => b.physics_mw) };
-  }, [blocks, evacuationMw]);
+  }, [blocks, evacuationMw, ceilingMw]);
 
   if (blocks.length === 0) return null;
 
@@ -102,9 +127,16 @@ export function ForecastChart({
   const ticks: number[] = [];
   for (let v = 0; v <= ceiling; v += step) ticks.push(v);
 
-  const horizonX = x(revisionHorizonBlock);
-  const nowX = x(currentBlock);
+  // A future day has no elapsed past and no revision gate, so both marks are
+  // absent rather than drawn at block 1. `undefined` here is the caller saying
+  // "this day has not started", which is different from "it starts at zero".
+  const horizonX = revisionHorizonBlock === undefined ? null : x(revisionHorizonBlock);
+  const nowX = currentBlock === undefined ? null : x(currentBlock);
   const tickBlocks = blocks.filter((b) => (b.block - 1) % 8 === 0).map((b) => b.block);
+
+  // The hovered block is addressed by number, not by object, so the same
+  // pointer position resolves on two different days' data.
+  const hover = activeBlock === null ? null : (blocks.find((b) => b.block === activeBlock) ?? null);
 
   return (
     <figure className="m-0">
@@ -215,36 +247,46 @@ export function ForecastChart({
         {/* ── Locked region ────────────────────────────────────────────
             A wash over the past rather than a clipped chart. The forecast for
             an elapsed block is still information — it is the record of what
-            you believed when the gate closed. */}
-        <g clipPath={`url(#${clipId})`}>
-          <rect
-            x={PAD.left}
-            y={PAD.top}
-            width={Math.max(horizonX - PAD.left, 0)}
-            height={PLOT_H}
-            fill="var(--page)"
-            opacity={0.45}
-          />
-        </g>
+            you believed when the gate closed.
+
+            Only for the day in progress. A day that has not started has no
+            locked blocks, and washing part of it would claim a deadline had
+            already passed. */}
+        {horizonX !== null && (
+          <g clipPath={`url(#${clipId})`}>
+            <rect
+              x={PAD.left}
+              y={PAD.top}
+              width={Math.max(horizonX - PAD.left, 0)}
+              height={PLOT_H}
+              fill="var(--page)"
+              opacity={0.45}
+            />
+          </g>
+        )}
 
         {/* ── Markers ──────────────────────────────────────────────────── */}
-        <line
-          x1={horizonX}
-          x2={horizonX}
-          y1={PAD.top}
-          y2={PAD.top + PLOT_H}
-          stroke="var(--series-1)"
-          strokeWidth={1.5}
-        />
-        <line
-          x1={nowX}
-          x2={nowX}
-          y1={PAD.top}
-          y2={PAD.top + PLOT_H}
-          stroke="var(--ink-primary)"
-          strokeWidth={1}
-          strokeDasharray="3 3"
-        />
+        {horizonX !== null && (
+          <line
+            x1={horizonX}
+            x2={horizonX}
+            y1={PAD.top}
+            y2={PAD.top + PLOT_H}
+            stroke="var(--series-1)"
+            strokeWidth={1.5}
+          />
+        )}
+        {nowX !== null && (
+          <line
+            x1={nowX}
+            x2={nowX}
+            y1={PAD.top}
+            y2={PAD.top + PLOT_H}
+            stroke="var(--ink-primary)"
+            strokeWidth={1}
+            strokeDasharray="3 3"
+          />
+        )}
 
         {/* ── X axis ───────────────────────────────────────────────────── */}
         <line
@@ -280,7 +322,7 @@ export function ForecastChart({
             width={PLOT_W / BLOCKS_PER_DAY}
             height={PLOT_H}
             fill="transparent"
-            onMouseEnter={() => setHover(b)}
+            onMouseEnter={() => setHover(b.block)}
           />
         ))}
 
@@ -316,7 +358,13 @@ export function ForecastChart({
           </Key>
         </ul>
 
-        <ReadOut hover={hover} capacityMw={capacityMw} evacuationMw={evacuationMw} />
+        <ReadOut
+          hover={hover}
+          capacityMw={capacityMw}
+          evacuationMw={evacuationMw}
+          date={date}
+          scheduleMw={scheduleMw}
+        />
       </figcaption>
     </figure>
   );
@@ -328,10 +376,14 @@ function ReadOut({
   hover,
   capacityMw,
   evacuationMw,
+  date,
+  scheduleMw,
 }: {
   hover: ForecastBlock | null;
   capacityMw: number;
   evacuationMw: number;
+  date?: string;
+  scheduleMw?: Map<number, number>;
 }) {
   if (!hover) {
     return (
@@ -343,9 +395,15 @@ function ReadOut({
 
   const width = hover.p90 - hover.p10;
   const overLimit = hover.p90 > evacuationMw;
+  const scheduled = scheduleMw?.get(hover.block);
 
   return (
     <p className="text-11 tabular-nums text-ink-secondary">
+      {/* The date only appears where it disambiguates. On the single-day view
+          the panel header already says which day this is. */}
+      {date && <span className="text-ink-muted">{despatchDateLabel(date)} · </span>}
+      <span className="text-ink-muted">block {hover.block}</span>
+      {" · "}
       <strong className="font-semibold text-ink-primary">{hover.label}</strong>
       {" · "}
       <span className="text-ink-muted">P10</span> {Math.round(hover.p10).toLocaleString("en-IN")}
@@ -357,6 +415,13 @@ function ReadOut({
       <span className="text-ink-muted">P90</span> {Math.round(hover.p90).toLocaleString("en-IN")}
       {" · ±"}
       {Math.round(width / 2).toLocaleString("en-IN")} MW
+      {scheduled !== undefined && (
+        <>
+          {" · "}
+          <span className="text-ink-muted">schedule</span>{" "}
+          {Math.round(scheduled).toLocaleString("en-IN")} MW
+        </>
+      )}
       {" · lead "}
       {hover.lead_hours.toFixed(1)}h
       {overLimit && (

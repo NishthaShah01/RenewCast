@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { ForecastChart } from "@/components/ForecastChart";
+import { ForecastExplorer } from "@/components/ForecastExplorer";
 import { HorizonSelector } from "@/components/HorizonSelector";
 import { Caveat, Panel, ServiceDown, Stat } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { blockStartLabel } from "@/lib/blocks";
+import { splitDays } from "@/lib/days";
 import {
-  despatchDateLabel,
   issuedAtLabel,
   mw,
   mwh,
@@ -18,12 +18,17 @@ import { HORIZON_PARAM, parseHorizon } from "@/lib/horizon";
 import type { DecisionResponse, ForecastResponse, Site } from "@/lib/types";
 
 /**
- * One site, one despatch day.
+ * One site, one despatch day at a time.
  *
  * The page is built around a single question — what will this plant put on the
  * grid, and how sure are we — so the fan chart is the whole top of the page
  * and everything else is subordinate to reading it: the day's energy beneath
  * it, the plant's physical configuration below that.
+ *
+ * The horizon decides how many days the forecast covers; the day selector
+ * inside the panel decides which one is on screen. Both live in the same
+ * surface because they answer one question in two steps — how far ahead, then
+ * which day — and neither is useful without the other.
  *
  * The declared schedule is overlaid from the decisions endpoint rather than
  * fetched separately, because the two must agree. A schedule drawn from one
@@ -69,15 +74,27 @@ export default async function SitePage(props: PageProps<"/sites/[siteId]">) {
   const site = forecast.site;
 
   // The forecast window opens at block 1 of today and runs forward from now,
-  // so a 24-hour horizon crosses midnight. Filtering to the despatch date is
-  // what keeps the chart on one 96-block spine instead of plotting blocks
-  // 1–22 twice.
-  const today = forecast.blocks.filter(
-    (b) => b.timestamp.slice(0, 10) === forecast.despatch_date,
-  );
+  // so it always ends mid-day. `splitDays` hands back the whole despatch days
+  // the horizon entitles this response to — one at 24 h, three at 72 h — and
+  // leaves the partial tail out of the day selector.
+  const days = splitDays(forecast.blocks, forecast.despatch_date, horizon);
+
+  // A response with no whole day in it cannot be plotted on a 96-block spine.
+  // Saying so beats every downstream reduce failing on an empty array.
+  if (days.length === 0) {
+    return (
+      <ServiceDown
+        title="Forecast incomplete"
+        message="The forecast service returned no complete despatch day for this site."
+        hint="Try again once the next forecast run has published."
+      />
+    );
+  }
+
+  const today = days[0].blocks;
 
   const schedule = decisions
-    ? new Map(decisions.blocks.map((b) => [b.block, b.schedule_mw]))
+    ? decisions.blocks.map((b) => [b.block, b.schedule_mw] as [number, number])
     : undefined;
 
   const energyP50 = today.reduce((s, b) => s + b.p50, 0) / 4;
@@ -98,37 +115,27 @@ export default async function SitePage(props: PageProps<"/sites/[siteId]">) {
 
       <Panel
         title="Forecast"
-        action={
-          <div className="flex items-baseline gap-3">
-            <span className="text-11 text-ink-muted tabular-nums">
-              {today.length} blocks · {despatchDateLabel(forecast.despatch_date)}
-            </span>
-            <HorizonSelector value={horizon} />
-          </div>
-        }
+        action={<HorizonSelector value={horizon} />}
         footnote={
           // The window figure is the backend's own `horizon_hours` echo and the
           // length of the block list it returned — not a frontend calculation.
-          // The chart stays on today's spine at every horizon, so saying so is
-          // the difference between a control that looks broken and one whose
-          // scope is understood.
-          `Window: ${forecast.horizon_hours} h from issue, ${forecast.blocks.length} blocks returned. ` +
-          `The chart plots the ${today.length} blocks of the current despatch day; ` +
-          `later blocks are in the response and extend the window, not the spine. ` +
+          // Saying how many whole days that buys is the difference between a
+          // control that looks broken at 48 h and one whose scope is understood.
+          `Window: ${forecast.horizon_hours} h from issue, ${forecast.blocks.length} blocks returned — ` +
+          `${days.length === 1 ? "one whole despatch day" : `${days.length} whole despatch days`}. ` +
+          `Each day is plotted on the same 96-block spine; the window's partial tail ` +
+          `extends the forecast, not the spine. Now, the revision gate and the declared ` +
+          `schedule belong to the current day only. ` +
           `The despatch plan below covers one despatch day at every horizon.`
         }
       >
-        <div className="px-4 pb-4 pt-5">
-          <ForecastChart
-            blocks={today}
-            capacityMw={site.capacity_mw}
-            evacuationMw={site.evacuation_limit_mw}
-            revisionHorizonBlock={forecast.revision_horizon_block}
-            currentBlock={forecast.current_block}
-            scheduleMw={schedule}
-            technology={site.technology}
-          />
-        </div>
+        <ForecastExplorer
+          days={days}
+          site={site}
+          schedule={schedule}
+          currentBlock={forecast.current_block}
+          revisionHorizonBlock={forecast.revision_horizon_block}
+        />
 
         {(forecast.degraded || forecast.notes.length > 0 || decisions) && (
           <div className="flex flex-col gap-2 border-t border-[var(--gridline)] px-4 py-3">
