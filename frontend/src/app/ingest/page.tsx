@@ -250,10 +250,10 @@ export default function IngestPage() {
     <div className="flex flex-col gap-6">
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <header className="border-b border-[var(--gridline)] pb-4">
-        <h1 className="text-20 font-semibold tracking-[-0.01em] text-ink-primary">
+        <h1 className="text-24 font-semibold tracking-[-0.01em] text-ink-primary">
           Historical generation data
         </h1>
-        <p className="mt-0.5 text-12 text-ink-secondary">
+        <p className="mt-1 text-14 text-ink-secondary">
           Upload measured generation data to compare forecasts with actual output.
         </p>
       </header>

@@ -155,7 +155,7 @@ function Impact({
       {mwh(energyMwh)}
       <Sep />
       <span style={{ color: costInr < 0 ? "var(--delta-pos)" : "var(--delta-neg)" }}>
-        {inr(Math.abs(costInr))} {costInr < 0 ? "earned" : "spent"}
+        {inr(Math.abs(costInr))} {costInr < 0 ? "saved" : "spent"}
       </span>
       <Sep />
       <span style={{ color: co2Tonnes < 0 ? "var(--delta-pos)" : undefined }}>
@@ -171,7 +171,7 @@ function DayImpact({ decisions }: { decisions: DecisionResponse }) {
     <span className="tabular-nums">
       <span style={{ color: decisions.net_cost_inr < 0 ? "var(--delta-pos)" : undefined }}>
         {inr(Math.abs(decisions.net_cost_inr))}{" "}
-        {decisions.net_cost_inr < 0 ? "earned" : "spent"} across the day
+        {decisions.net_cost_inr < 0 ? "saved" : "additional cost"} across the day
       </span>
       <Sep />
       {mwh(decisions.deficit_energy_mwh)} shortfall risk
