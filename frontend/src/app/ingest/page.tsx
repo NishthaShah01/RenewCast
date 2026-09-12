@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { motion } from "motion/react";
 
+import { MotionSection } from "@/components/MotionSection";
 import { Panel, StatusDot, Th, Td } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { mw, technologyLabel } from "@/lib/format";
@@ -86,6 +88,20 @@ export default function IngestPage() {
     () => sites.find((s) => s.id === selectedSiteId) ?? sites[0],
     [sites, selectedSiteId],
   );
+
+  // Check if filename suggests a different site than selected
+  const suggestedSiteMismatch = useMemo(() => {
+    if (!file || !sites || sites.length === 0) return null;
+    const lowerName = file.name.toLowerCase();
+    const other = sites.find((s) => {
+      if (s.id === selectedSiteId) return false;
+      const idMatch = lowerName.includes(s.id.toLowerCase());
+      const nameParts = s.name.toLowerCase().split(/\s+/);
+      const nameMatch = nameParts.some((p) => p.length > 3 && lowerName.includes(p));
+      return idMatch || nameMatch;
+    });
+    return other ? { detectedSite: other, fileName: file.name } : null;
+  }, [file, selectedSiteId, sites]);
 
   // Validate CSV with optional custom mappings
   const runValidation = useCallback(
@@ -249,17 +265,21 @@ export default function IngestPage() {
   return (
     <div className="flex flex-col gap-6">
       {/* ── Header ──────────────────────────────────────────────────────── */}
-      <header className="border-b border-[var(--gridline)] pb-4">
+      <MotionSection index={0} as="header" className="border-b border-[var(--gridline)] pb-3">
         <h1 className="text-20 font-semibold tracking-[-0.01em] text-ink-primary">
-          Historical generation data
+          Historical Data
         </h1>
         <p className="mt-0.5 text-12 text-ink-secondary">
-          Upload measured generation data to compare forecasts with actual output.
+          Import measured generation for forecast-vs-actual analysis.
         </p>
-      </header>
+      </MotionSection>
 
       {/* ── Plant & Site Selector ───────────────────────────────────────── */}
-      <section className="flex flex-wrap items-center justify-between gap-4 rounded-panel border border-[var(--ring)] bg-surface p-4">
+      <MotionSection
+        index={1}
+        as="section"
+        className="flex flex-wrap items-center justify-between gap-4 rounded-panel border border-[var(--ring)] bg-surface p-4"
+      >
         {selectedSite ? (
           <div className="flex flex-wrap items-center gap-6">
             <div>
@@ -310,7 +330,35 @@ export default function IngestPage() {
             ))}
           </select>
         </div>
-      </section>
+      </MotionSection>
+
+      {/* ── Site Mismatch Warning Banner ─────────────────────────────────── */}
+      {suggestedSiteMismatch && (
+        <div
+          role="alert"
+          className="flex items-center justify-between gap-3 rounded-panel border border-[var(--status-warning)] bg-[var(--page)] p-3.5 text-12"
+        >
+          <div className="flex items-center gap-2.5">
+            <StatusDot level="warning" />
+            <span className="text-ink-secondary">
+              <strong className="font-semibold text-ink-primary">Site mismatch warning:</strong>{" "}
+              File &ldquo;{suggestedSiteMismatch.fileName}&rdquo; suggests{" "}
+              <strong className="font-semibold text-ink-primary">
+                {suggestedSiteMismatch.detectedSite.name}
+              </strong>
+              , but you have selected{" "}
+              <strong className="font-semibold text-ink-primary">{selectedSite?.name}</strong>.
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => handleSiteChange(suggestedSiteMismatch.detectedSite.id)}
+            className="btn-secondary text-11 shrink-0"
+          >
+            Switch to {suggestedSiteMismatch.detectedSite.name}
+          </button>
+        </div>
+      )}
 
       {/* ── Global Error Banner ─────────────────────────────────────────── */}
       {errorMessage && (
@@ -330,21 +378,22 @@ export default function IngestPage() {
 
       {/* ── Step 1: Upload CSV Area ─────────────────────────────────────── */}
       {currentStep !== 4 && (
-        <Panel
-          title="1. Upload CSV"
-          meta={file ? `${(file.size / 1024).toFixed(1)} KB` : "CSV up to 10 MB"}
-          action={
-            file ? (
-              <button
-                type="button"
-                onClick={handleReset}
-                className="text-11 text-ink-muted hover:text-ink-primary underline cursor-pointer"
-              >
-                Choose different file
-              </button>
-            ) : null
-          }
-        >
+        <MotionSection index={2}>
+          <Panel
+            title="Upload CSV"
+            meta={file ? `${(file.size / 1024).toFixed(1)} KB` : "CSV up to 10 MB"}
+            action={
+              file ? (
+                <button
+                  type="button"
+                  onClick={handleReset}
+                  className="btn-secondary text-11"
+                >
+                  Choose different file
+                </button>
+              ) : null
+            }
+          >
           <div className="p-4">
             <input
               ref={fileInputRef}
@@ -373,7 +422,7 @@ export default function IngestPage() {
                   const f = e.dataTransfer.files?.[0];
                   if (f) handleFileSelect(f);
                 }}
-                className={`flex flex-col items-center justify-center gap-3 rounded-panel border-2 border-dashed px-6 py-8 text-center transition-colors ${
+                className={`flex flex-col items-center justify-center gap-3 rounded-panel border-2 border-dashed px-6 py-8 text-center transition-all duration-200 ${
                   isDragOver
                     ? "border-[var(--series-1)] bg-[var(--page)]"
                     : "border-[var(--ring)] bg-surface hover:border-[var(--baseline)]"
@@ -401,33 +450,38 @@ export default function IngestPage() {
                     Drop CSV here or click to browse
                   </p>
                   <p className="mt-1 text-11 text-ink-muted">
-                    Supports 15-minute or hourly generation records with timestamp and MW columns
+                    15-minute data · 96 rows
                   </p>
                 </div>
 
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="rounded-control border border-[var(--ring)] bg-[var(--page)] px-4 py-1.5 text-12 font-medium text-ink-primary hover:bg-[var(--surface)] transition-colors cursor-pointer"
+                  className="btn-secondary text-12 px-4 py-1.5"
                 >
                   Browse CSV
                 </button>
               </div>
             ) : (
-              <div className="flex items-center justify-between rounded-panel border border-[var(--gridline)] bg-[var(--page)] px-4 py-3 text-12">
+              <motion.div
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.18, ease: "easeOut" }}
+                className="flex items-center justify-between rounded-panel border border-[var(--gridline)] bg-[var(--page)] px-4 py-3 text-12"
+              >
                 <div className="flex items-center gap-3">
                   <span className="font-mono text-14 text-ink-muted">CSV</span>
                   <div>
                     <p className="font-medium text-ink-primary">{file.name}</p>
                     <p className="text-11 text-ink-muted">
-                      {(file.size / 1024).toFixed(1)} KB · Selected for {selectedSite.name}
+                      {(file.size / 1024).toFixed(1)} KB
                     </p>
                   </div>
                 </div>
 
                 {isValidating ? (
                   <span className="inline-flex items-center gap-2 text-11 text-ink-secondary">
-                    <span className="size-2 rounded-pill bg-[var(--series-1)] animate-ping" />
+                    <span className="size-2 rounded-full bg-[var(--series-1)] animate-pulse" />
                     Validating rows...
                   </span>
                 ) : (
@@ -435,24 +489,25 @@ export default function IngestPage() {
                     <StatusDot level="good" /> Loaded
                   </span>
                 )}
-              </div>
+              </motion.div>
             )}
           </div>
         </Panel>
+      </MotionSection>
       )}
 
       {/* ── Step 2: Column Mapping ───────────────────────────────────────── */}
       {file && validationResult && currentStep !== 4 && (
-        <Panel
-          title="2. Column mapping"
-          meta={`${validationResult.headers.length} columns detected in CSV`}
+        <motion.div
+          initial={{ opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.18, ease: "easeOut" }}
         >
+          <Panel
+            title="Column mapping"
+            meta={`${validationResult.headers.length} columns detected in CSV`}
+          >
           <div className="p-4">
-            <p className="text-12 text-ink-secondary mb-3">
-              Match the CSV columns to RenewCast fields. Obvious names are auto-selected. Ambiguous
-              names require confirmation.
-            </p>
-
             <div className="overflow-x-auto">
               <table className="w-full text-left text-12">
                 <thead>
@@ -537,13 +592,19 @@ export default function IngestPage() {
             </div>
           </div>
         </Panel>
+      </motion.div>
       )}
 
       {/* ── Step 3: Validation Preview ───────────────────────────────────── */}
       {file && validationResult && currentStep !== 4 && (
-        <Panel
-          title="3. Validation preview"
-          meta={
+        <motion.div
+          initial={{ opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.18, ease: "easeOut", delay: 0.035 }}
+        >
+          <Panel
+            title="3. Validation preview"
+            meta={
             validationResult.total_rows > 0
               ? `Previewing first ${Math.min(20, validationResult.total_rows)} of ${validationResult.total_rows.toLocaleString("en-IN")} rows`
               : undefined
@@ -617,9 +678,6 @@ export default function IngestPage() {
                 </span>
               </div>
             )}
-
-            {/* Summary Message */}
-            <p className="text-12 text-ink-secondary">{validationResult.summary_message}</p>
 
             {/* Preview Table */}
             {validationResult.preview_rows.length > 0 ? (
@@ -723,25 +781,21 @@ export default function IngestPage() {
 
             {/* Import Action */}
             <div className="flex items-center justify-between pt-2">
-              <span className="text-11 text-ink-muted">
+              <span className="text-12 font-medium text-ink-secondary tabular-nums">
                 {validationResult.valid_rows_count > 0
-                  ? `Ready to import ${validationResult.valid_rows_count.toLocaleString("en-IN")} valid records into the actuals store.`
-                  : "No valid rows available to import. Check column mappings or CSV format."}
+                  ? `${validationResult.valid_rows_count.toLocaleString("en-IN")} valid · ready to import`
+                  : "No valid rows available"}
               </span>
 
               <button
                 type="button"
                 onClick={handleImport}
                 disabled={validationResult.valid_rows_count === 0 || isImporting}
-                className={`rounded-control px-5 py-2 text-13 font-semibold transition-colors cursor-pointer ${
-                  validationResult.valid_rows_count > 0 && !isImporting
-                    ? "bg-[var(--series-1)] text-white hover:opacity-90"
-                    : "bg-[var(--baseline)] text-ink-muted cursor-not-allowed"
-                }`}
+                className="btn-accent px-5 py-2 text-13 font-semibold"
               >
                 {isImporting ? (
                   <span className="inline-flex items-center gap-2">
-                    <span className="size-2 rounded-pill bg-white animate-ping" />
+                    <span className="size-2 rounded-full bg-white animate-pulse" />
                     Importing...
                   </span>
                 ) : (
@@ -751,6 +805,7 @@ export default function IngestPage() {
             </div>
           </div>
         </Panel>
+      </motion.div>
       )}
 
       {/* ── Step 4: Import Result ────────────────────────────────────────── */}
@@ -759,7 +814,12 @@ export default function IngestPage() {
           title="4. Import result"
           meta={importResult.skipped_rows === 0 ? "Complete success" : "Partial import"}
         >
-          <div className="p-6 flex flex-col gap-6">
+          <motion.div
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.22, ease: "easeOut" }}
+            className="p-6 flex flex-col gap-6"
+          >
             {/* Status Headline */}
             <div className="flex items-start gap-3">
               <span className="mt-1">
@@ -837,7 +897,7 @@ export default function IngestPage() {
                   <button
                     type="button"
                     onClick={handleDownloadSkipped}
-                    className="inline-flex items-center gap-1.5 rounded-control border border-[var(--ring)] bg-surface px-3 py-1.5 text-12 font-medium text-ink-primary hover:bg-[var(--page)] transition-colors cursor-pointer"
+                    className="btn-secondary text-12"
                   >
                     <svg
                       width="13"
@@ -891,26 +951,26 @@ export default function IngestPage() {
               <button
                 type="button"
                 onClick={handleReset}
-                className="rounded-control border border-[var(--ring)] bg-surface px-4 py-2 text-12 font-semibold text-ink-primary hover:bg-[var(--page)] transition-colors cursor-pointer"
+                className="btn-secondary text-12 px-4 py-2"
               >
                 Upload another dataset
               </button>
 
               <Link
                 href={`/sites/${selectedSiteId}`}
-                className="rounded-control bg-[var(--series-1)] text-white px-4 py-2 text-12 font-semibold hover:opacity-90 transition-opacity"
+                className="btn-accent text-12 px-4 py-2"
               >
                 View site details & forecast
               </Link>
 
               <Link
                 href="/accuracy"
-                className="rounded-control border border-[var(--ring)] bg-surface px-4 py-2 text-12 font-medium text-ink-secondary hover:text-ink-primary hover:bg-[var(--page)] transition-colors"
+                className="btn-secondary text-12 px-4 py-2"
               >
                 View accuracy metrics
               </Link>
             </div>
-          </div>
+          </motion.div>
         </Panel>
       )}
     </div>

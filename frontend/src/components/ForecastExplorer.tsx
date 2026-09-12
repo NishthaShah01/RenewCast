@@ -86,7 +86,7 @@ export function ForecastExplorer({
           <button
             type="button"
             onClick={() => setComparing(true)}
-            className="h-7 rounded-control border border-[var(--ring)] px-3 text-11 font-medium text-ink-secondary hover:text-ink-primary"
+            className="btn-secondary text-11"
           >
             Compare days
           </button>
@@ -152,7 +152,7 @@ function DaySelector({
             type="button"
             aria-pressed={active}
             onClick={() => onSelect(day.offset)}
-            className="border-r border-[var(--gridline)] px-2.5 py-1 text-11 font-medium last:border-r-0"
+            className="border-r border-[var(--gridline)] px-2.5 py-1 text-11 font-medium last:border-r-0 active:scale-[0.98] transition-all duration-150"
             style={
               active
                 ? { background: "var(--ink-primary)", color: "var(--surface)" }
@@ -263,7 +263,7 @@ function CompareDialog({
         <button
           type="button"
           onClick={() => ref.current?.close()}
-          className="h-7 rounded-control border border-[var(--ring)] px-3 text-11 font-medium text-ink-secondary hover:text-ink-primary"
+          className="btn-secondary text-11"
         >
           Close
         </button>

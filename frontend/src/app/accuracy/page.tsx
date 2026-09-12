@@ -1,19 +1,14 @@
-import Link from "next/link";
-
-import { Caveat, Panel, ServiceDown, Stat, Td, Th } from "@/components/ui";
+import { MotionSection } from "@/components/MotionSection";
+import { Panel, ServiceDown, Stat, Td, Th } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { percent, technologyLabel } from "@/lib/format";
 import type { AccuracyResponse, TechnologyAccuracy } from "@/lib/types";
 
-/**
- * Model accuracy.
- *
- * The page states what the model is worth against the honest baseline — Stage
- * A physics alone — rather than quoting an MAE that would look impressive next
- * to no baseline at all. It also states where the model is weaker than
- * nominal, because a metrics page that only reports flattering numbers is
- * marketing.
- */
+export const metadata = {
+  title: "Accuracy — RenewCast",
+  description: "Empirical validation against held-out weather splits and baseline comparison.",
+};
+
 export default async function AccuracyPage() {
   let data: AccuracyResponse;
   try {
@@ -29,74 +24,62 @@ export default async function AccuracyPage() {
   }
 
   return (
-    <div className="flex flex-col gap-8">
-      <div>
-        <nav className="mb-2 text-11 text-ink-muted">
-          <Link href="/" className="underline-offset-2 hover:underline">Fleet</Link>
-          <span className="mx-1.5" aria-hidden>/</span>
-          <span>Accuracy</span>
-        </nav>
-        <h1 className="text-24 font-semibold tracking-[-0.01em]">Model accuracy</h1>
-        <p className="mt-1 max-w-[80ch] text-14 text-ink-secondary">
-          Validation metrics on a held-out split, measured against archived
-          forecast weather at four lead times — so the error growth with lead
-          time is the real thing, not an artefact of reanalysis.
+    <div className="flex flex-col gap-5">
+      <MotionSection index={0}>
+        <h1 className="text-20 font-semibold tracking-[-0.01em] text-ink-primary">Accuracy</h1>
+        <p className="mt-0.5 text-12 text-ink-secondary">
+          Validation against held-out forecast data.
         </p>
-      </div>
+      </MotionSection>
 
-      {data.technologies.map((t) => (
-        <TechnologyPanel key={t.technology} t={t} />
+      {data.technologies.map((t, i) => (
+        <MotionSection key={t.technology} index={1 + i}>
+          <TechnologyPanel t={t} />
+        </MotionSection>
       ))}
 
-      <Panel title="How these were produced" meta={`v${data.model_version}`}>
-        <div className="flex flex-col gap-3 px-4 py-4 text-14 text-ink-secondary">
-          <p className="max-w-[86ch]">
-            Two stages. Stage A is deterministic physics — clear-sky irradiance
-            and a real turbine power curve. Stage B is gradient-boosted quantile
-            regression that predicts the <em>residual</em> in capacity-factor
-            terms, at three quantiles.
-          </p>
-          <p className="max-w-[86ch]">
-            No target lags are used as features. A model given yesterday&rsquo;s
-            output would score beautifully in validation and be useless at a
-            72-hour horizon, where no recent actuals exist. This is enforced by
-            a test, not by convention.
-          </p>
-          <Caveat>
-            Ground truth is {data.ground_truth}. The physics and the weather are
-            real; the plant&rsquo;s measured response is modelled, because
-            block-level metered output for these sites is not public. Treat the
-            error figures as a bound on the method, not as a field-validated
-            claim about these specific plants.
-          </Caveat>
-        </div>
-      </Panel>
+      <MotionSection index={1 + data.technologies.length}>
+        <Panel title="How these were produced" meta={`v${data.model_version}`}>
+          <div className="grid grid-cols-1 gap-3 p-4 text-12 sm:grid-cols-2">
+            <div>
+              <span className="font-semibold text-ink-primary">Model: </span>
+              <span className="text-ink-secondary">Physics + gradient-boosted quantile regression</span>
+            </div>
+            <div>
+              <span className="font-semibold text-ink-primary">Validation: </span>
+              <span className="text-ink-secondary">Held-out weather split</span>
+            </div>
+            <div>
+              <span className="font-semibold text-ink-primary">Ground truth: </span>
+              <span className="text-ink-secondary">Synthetic plant response from archived weather</span>
+            </div>
+            <div>
+              <span className="font-semibold text-ink-primary">Limitations: </span>
+              <span className="text-ink-secondary">Plant-level measured output is not publicly available</span>
+            </div>
+          </div>
+        </Panel>
+      </MotionSection>
     </div>
   );
 }
 
 function TechnologyPanel({ t }: { t: TechnologyAccuracy }) {
-  // Coverage error in points. Wider than nominal is conservative; narrower is
-  // overconfident, and only one of those is a problem for an operator.
+  // Coverage error in points
   const coverageError = t.pi_coverage - t.pi_nominal;
-  const conservative = coverageError > 0;
 
   return (
     <Panel
       title={technologyLabel(t.technology)}
       meta={`${t.rows_train.toLocaleString("en-IN")} training rows · ${t.n_features} features`}
-      footnote={
-        conservative
-          ? `Intervals are wider than nominal by ${(coverageError * 100).toFixed(1)} points — conservative, so an operator planning against P10 is covered slightly more often than advertised.`
-          : `Intervals are narrower than nominal by ${(Math.abs(coverageError) * 100).toFixed(1)} points — mildly overconfident. Plan against P10 with that in mind.`
-      }
+      footnote={`${percent(t.pi_nominal, 0)} nominal coverage`}
     >
-      <dl className="grid grid-cols-2 gap-x-8 gap-y-5 px-4 py-4 sm:grid-cols-4">
+      <dl className="grid grid-cols-2 gap-x-8 gap-y-4 px-4 py-3 sm:grid-cols-4">
         <Stat
           label="Skill over physics"
           value={`${t.skill_pct.toFixed(1)}%`}
           tone="positive"
-          note="The only honest measure of what ML adds"
+          note="vs physics baseline"
         />
         <Stat
           label="nMAE"
@@ -163,7 +146,7 @@ function Row({
   delta: string;
 }) {
   return (
-    <tr className="border-b border-[var(--gridline)] last:border-0">
+    <tr className="border-b border-[var(--gridline)] last:border-0 hover:bg-[var(--page)]/40 transition-colors duration-150">
       <Td>{name}</Td>
       <Td numeric>{model}</Td>
       <Td numeric muted>{physics}</Td>

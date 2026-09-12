@@ -46,12 +46,16 @@ export function BlockClock() {
   }
 
   return (
-    <span className="flex items-baseline gap-2 text-12 tabular-nums">
-      <span className="font-semibold text-ink-primary">Block {now.block}</span>
-      <span className="text-ink-secondary">{now.label}</span>
-      <span className="text-ink-muted">
-        revisable from <span className="font-medium">{now.horizon}</span>
+    <div className="flex items-center gap-2 sm:gap-2.5 text-12 tabular-nums select-none">
+      <span className="font-semibold text-ink-primary whitespace-nowrap">
+        Block {now.block}
       </span>
-    </span>
+      <span className="text-ink-secondary font-normal whitespace-nowrap hidden sm:inline-block">
+        {now.label}
+      </span>
+      <span className="text-11 font-medium text-[var(--series-1)] whitespace-nowrap">
+        revisable from {now.horizon}
+      </span>
+    </div>
   );
 }

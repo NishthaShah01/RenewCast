@@ -327,7 +327,7 @@ export function ForecastChart({
         ))}
 
         {hover && (
-          <g pointerEvents="none">
+          <g pointerEvents="none" className="transition-all duration-100 ease-out">
             <line
               x1={x(hover.block)}
               x2={x(hover.block)}
@@ -335,6 +335,8 @@ export function ForecastChart({
               y2={PAD.top + PLOT_H}
               stroke="var(--ink-secondary)"
               strokeWidth={1}
+              strokeDasharray="2,2"
+              opacity={0.8}
             />
             <circle cx={x(hover.block)} cy={y(hover.p50)} r={3.5} fill="var(--series-1)" />
             <circle cx={x(hover.block)} cy={y(hover.p90)} r={2} fill="var(--series-1)" opacity={0.6} />
@@ -387,7 +389,7 @@ function ReadOut({
 }) {
   if (!hover) {
     return (
-      <p className="text-11 text-ink-muted">
+      <p className="text-11 text-ink-muted transition-opacity duration-150 ease-out">
         Hover a block for its interval · {capacityMw.toLocaleString("en-IN")} MW nameplate
       </p>
     );
@@ -398,7 +400,7 @@ function ReadOut({
   const scheduled = scheduleMw?.get(hover.block);
 
   return (
-    <p className="text-11 tabular-nums text-ink-secondary">
+    <p className="text-11 tabular-nums text-ink-secondary transition-opacity duration-100 ease-out">
       {/* The date only appears where it disambiguates. On the single-day view
           the panel header already says which day this is. */}
       {date && <span className="text-ink-muted">{despatchDateLabel(date)} · </span>}

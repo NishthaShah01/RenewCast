@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { ForecastExplorer } from "@/components/ForecastExplorer";
 import { HorizonSelector } from "@/components/HorizonSelector";
+import { MotionSection } from "@/components/MotionSection";
 import { Caveat, Panel, ServiceDown, Stat } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { blockStartLabel } from "@/lib/blocks";
@@ -111,82 +112,89 @@ export default async function SitePage(props: PageProps<"/sites/[siteId]">) {
 
   return (
     <div className="flex flex-col gap-8">
-      <SiteHeader site={site} forecast={forecast} />
+      <MotionSection as="header" index={0}>
+        <SiteHeader site={site} forecast={forecast} />
+      </MotionSection>
 
-      <Panel
-        title="Forecast"
-        action={<HorizonSelector value={horizon} />}
-        footnote={
-          // The window figure is the backend's own `horizon_hours` echo and the
-          // length of the block list it returned — not a frontend calculation.
-          // Saying how many whole days that buys is the difference between a
-          // control that looks broken at 48 h and one whose scope is understood.
-          `Window: ${forecast.horizon_hours} h from issue, ${forecast.blocks.length} blocks returned — ` +
-          `${days.length === 1 ? "one whole despatch day" : `${days.length} whole despatch days`}. ` +
-          `Each day is plotted on the same 96-block spine; the window's partial tail ` +
-          `extends the forecast, not the spine. Now, the revision gate and the declared ` +
-          `schedule belong to the current day only. ` +
-          `The despatch plan below covers one despatch day at every horizon.`
-        }
-      >
-        <ForecastExplorer
-          days={days}
-          site={site}
-          schedule={schedule}
-          currentBlock={forecast.current_block}
-          revisionHorizonBlock={forecast.revision_horizon_block}
-        />
-
-        {(forecast.degraded || forecast.notes.length > 0 || decisions) && (
-          <div className="flex flex-col gap-2 border-t border-[var(--gridline)] px-4 py-3">
-            {forecast.degraded ? (
-              <Caveat>
-                Physics only — no trained model was loaded, so these are Stage A
-                numbers with a nominal spread rather than learned quantiles.
-              </Caveat>
-            ) : null}
-            {forecast.notes.map((note) => (
-              <Caveat key={note}>{note}</Caveat>
-            ))}
-            {decisions ? (
-              <Caveat>{decisions.schedule_basis}</Caveat>
-            ) : null}
-          </div>
-        )}
-      </Panel>
-
-      <Panel
-        title="Today"
-        meta={`issued ${issuedAtLabel(forecast.issued_at)}`}
-        footnote={`Energy is the block-integrated median: each block is a quarter hour, so MWh is MW ÷ 4. Weather from ${forecast.weather_source}, model ${forecast.model_version}.`}
-      >
-        <dl className="grid grid-cols-2 gap-x-8 gap-y-5 px-4 py-4 sm:grid-cols-4">
-          <Stat
-            label="Expected energy"
-            value={mwh(energyP50)}
-            note={`${mwh(energyP10)} to ${mwh(energyP90)} · 80% interval`}
+      <MotionSection as="div" index={1}>
+        <Panel
+          title="Forecast"
+          action={<HorizonSelector value={horizon} />}
+          footnote={
+            // The window figure is the backend's own `horizon_hours` echo and the
+            // length of the block list it returned — not a frontend calculation.
+            // Saying how many whole days that buys is the difference between a
+            // control that looks broken at 48 h and one whose scope is understood.
+            `Window: ${forecast.horizon_hours} h from issue, ${forecast.blocks.length} blocks returned — ` +
+            `${days.length === 1 ? "one whole despatch day" : `${days.length} whole despatch days`}. ` +
+            `Each day is plotted on the same 96-block spine; the window's partial tail ` +
+            `extends the forecast, not the spine. Now, the revision gate and the declared ` +
+            `schedule belong to the current day only. ` +
+            `The despatch plan below covers one despatch day at every horizon.`
+          }
+        >
+          <ForecastExplorer
+            days={days}
+            site={site}
+            schedule={schedule}
+            currentBlock={forecast.current_block}
+            revisionHorizonBlock={forecast.revision_horizon_block}
           />
-          <Stat
-            label="Peak"
-            value={mw(peak.p50)}
-            note={`${peak.label} · block ${peak.block}`}
-          />
-          <Stat
-            label="Capacity factor"
-            value={percent(energyP50 / (site.capacity_mw * 24))}
-            note={`${mw(site.capacity_mw)} nameplate`}
-          />
-          <Stat
-            label="Least certain block"
-            value={`±${mw((widest.p90 - widest.p10) / 2)}`}
-            note={`${blockStartLabel(widest.block)} · hold reserve here`}
-          />
-        </dl>
-      </Panel>
 
-      {decisions ? <DecisionsSummary decisions={decisions} siteId={site.id} /> : null}
+          {(forecast.degraded || forecast.notes.length > 0 || decisions) && (
+            <div className="flex flex-col gap-2 border-t border-[var(--gridline)] px-4 py-3">
+              {forecast.degraded ? (
+                <Caveat>
+                  Physics only — no trained model was loaded, so these are Stage A
+                  numbers with a nominal spread rather than learned quantiles.
+                </Caveat>
+              ) : null}
+              {forecast.notes.map((note) => (
+                <Caveat key={note}>{note}</Caveat>
+              ))}
+              {decisions ? (
+                <Caveat>{decisions.schedule_basis}</Caveat>
+              ) : null}
+            </div>
+          )}
+        </Panel>
+      </MotionSection>
 
-      <PlantConfiguration site={site} />
+      <MotionSection as="div" index={2}>
+        <Panel
+          title="Today"
+          meta={`issued ${issuedAtLabel(forecast.issued_at)}`}
+          footnote={`Energy is the block-integrated median: each block is a quarter hour, so MWh is MW ÷ 4. Weather from ${forecast.weather_source}, model ${forecast.model_version}.`}
+        >
+          <dl className="grid grid-cols-2 gap-x-8 gap-y-5 px-4 py-4 sm:grid-cols-4">
+            <Stat
+              label="Expected energy"
+              value={mwh(energyP50)}
+              note={`${mwh(energyP10)} to ${mwh(energyP90)} · 80% interval`}
+            />
+            <Stat
+              label="Peak"
+              value={mw(peak.p50)}
+              note={`${peak.label} · block ${peak.block}`}
+            />
+            <Stat
+              label="Capacity factor"
+              value={percent(energyP50 / (site.capacity_mw * 24))}
+              note={`${mw(site.capacity_mw)} nameplate`}
+            />
+            <Stat
+              label="Least certain block"
+              value={`±${mw((widest.p90 - widest.p10) / 2)}`}
+              note={`${blockStartLabel(widest.block)} · hold reserve here`}
+            />
+          </dl>
+        </Panel>
+      </MotionSection>
+
+      <MotionSection as="div" index={3} className="flex flex-col gap-8">
+        {decisions ? <DecisionsSummary decisions={decisions} siteId={site.id} /> : null}
+        <PlantConfiguration site={site} />
+      </MotionSection>
     </div>
   );
 }
@@ -198,7 +206,13 @@ function SiteHeader({ site, forecast }: { site: Site; forecast: ForecastResponse
     <div>
       <nav className="mb-2 text-11 text-ink-muted">
         <Link href="/" className="underline-offset-2 hover:underline">
-          Fleet
+          Command Centre
+        </Link>
+        <span className="mx-1.5" aria-hidden>
+          /
+        </span>
+        <Link href="/fleet" className="underline-offset-2 hover:underline">
+          Portfolio
         </Link>
         <span className="mx-1.5" aria-hidden>
           /
@@ -243,9 +257,9 @@ function DecisionsSummary({
       action={
         <Link
           href={`/sites/${siteId}/decisions`}
-          className="text-12 font-medium underline-offset-2 hover:underline"
+          className="btn-secondary text-11"
         >
-          Open plan
+          Open plan →
         </Link>
       }
     >

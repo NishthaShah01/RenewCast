@@ -189,7 +189,7 @@ export function RiskEventsPanel({ events }: { events?: RiskEvent[] }) {
                       {ev.recommended_action}
                     </span>
                   ) : null}
-                  <span className="text-12 font-medium text-ink-muted">
+                  <span className="btn-secondary text-11">
                     {isExpanded ? "Hide detail ▲" : "View detail ▼"}
                   </span>
                 </div>

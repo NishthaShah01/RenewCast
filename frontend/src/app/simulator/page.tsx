@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { motion, AnimatePresence } from "motion/react";
 
+import { MotionSection } from "@/components/MotionSection";
 import { api } from "@/lib/api";
 import type {
   SimulatorDefaultsResponse,
@@ -12,6 +14,7 @@ import type {
 } from "@/lib/types";
 
 export default function SimulatorPage() {
+  const reducedMotion = usePrefersReducedMotion();
   const [sites, setSites] = useState<Site[]>([]);
   const [selectedSiteId, setSelectedSiteId] = useState<string>("bhadla");
   const [loadingInitial, setLoadingInitial] = useState<boolean>(true);
@@ -65,7 +68,6 @@ export default function SimulatorPage() {
   // Fetch baseline defaults whenever selected site changes
   useEffect(() => {
     let active = true;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoadingInitial(true);
     api
       .simulateDefaults(selectedSiteId)
@@ -188,7 +190,7 @@ export default function SimulatorPage() {
     setDieselCostPerMwh(baselineDefaults.diesel_cost_per_mwh ?? 22000);
   };
 
-  // Primary scenario outcome headline & supporting line (Strict priority order)
+  // 1. Primary Decisive Result (Outcome + Remaining problem + Impact)
   const primaryOutcome = useMemo(() => {
     if (!simResult) {
       return {
@@ -199,36 +201,48 @@ export default function SimulatorPage() {
 
     const baseUnserved = simResult.baseline.unserved_energy_mwh;
     const scenUnserved = simResult.scenario.unserved_energy_mwh;
-    const unservedDelta = simResult.deltas.unserved_energy_mwh; // scen - base
+    const unservedDelta = simResult.deltas.unserved_energy_mwh;
+    const costDelta = simResult.deltas.net_cost_inr;
+    const co2Delta = simResult.deltas.net_co2_tonnes;
 
     let headline = "";
 
-    // Priority A: All unserved energy removed
     if (baseUnserved > 0.05 && scenUnserved <= 0.05) {
       headline = "Scenario removes the forecast shortfall.";
-    }
-    // Priority B: Unserved energy reduced
-    else if (unservedDelta <= -0.05) {
-      const reduced = Math.abs(unservedDelta).toFixed(1);
-      headline = `Scenario removes ${reduced} MWh of unserved energy.`;
-    }
-    // Priority C: Unserved does not improve
-    else if (baseUnserved > 0.05 && scenUnserved >= baseUnserved - 0.05) {
-      headline = "Scenario does not remove the remaining shortfall.";
-    }
-    // Baseline zero deficit already
-    else if (baseUnserved <= 0.05 && scenUnserved <= 0.05) {
-      headline = "Zero shortfall maintained across all 96 dispatch blocks.";
+    } else if (scenUnserved > 0.05) {
+      headline = `${scenUnserved.toFixed(1)} MWh shortfall remains.`;
+    } else if (baseUnserved <= 0.05 && scenUnserved <= 0.05) {
+      headline = "Zero shortfall maintained across all 96 blocks.";
     } else {
-      headline = simResult.primary_message || "Scenario plan updated.";
+      headline = simResult.primary_message || "Scenario dispatch updated.";
     }
 
-    const baseCostStr = formatInr(simResult.baseline.net_cost_inr);
-    const scenCostStr = formatInr(simResult.scenario.net_cost_inr);
-    const baseCo2Str = `${simResult.baseline.net_co2_tonnes.toFixed(1)} t`;
-    const scenCo2Str = `${simResult.scenario.net_co2_tonnes.toFixed(1)} t`;
+    // Secondary line: financial, carbon, and relative reduction impacts
+    const parts: string[] = [];
 
-    const subline = `Operating cost: ${baseCostStr} → ${scenCostStr} · Net CO₂: ${baseCo2Str} → ${scenCo2Str}`;
+    if (unservedDelta <= -0.05 && scenUnserved > 0.05) {
+      parts.push(`Reduced by ${Math.abs(unservedDelta).toFixed(1)} MWh`);
+    }
+
+    // Cost impact in operator language
+    if (Math.abs(costDelta) < 10) {
+      parts.push("Operating cost unchanged");
+    } else if (costDelta < 0) {
+      parts.push(`Cost saved ${formatInr(Math.abs(costDelta))}`);
+    } else {
+      parts.push(`Additional cost +${formatInr(costDelta)}`);
+    }
+
+    // CO2 impact in operator language
+    if (Math.abs(co2Delta) < 0.05) {
+      parts.push("CO₂ unchanged");
+    } else if (co2Delta < 0) {
+      parts.push(`CO₂ avoided ${Math.abs(co2Delta).toFixed(1)} t`);
+    } else {
+      parts.push(`+${co2Delta.toFixed(1)} t CO₂`);
+    }
+
+    const subline = parts.join(" · ");
 
     return { headline, subline };
   }, [simResult]);
@@ -294,15 +308,19 @@ export default function SimulatorPage() {
   }, [simResult]);
 
   return (
-    <main className="mx-auto w-full max-w-[1360px] px-4 sm:px-6 py-6 flex flex-col gap-6">
+    <main className="mx-auto w-full max-w-[1360px] px-4 sm:px-6 py-5 flex flex-col gap-5">
       {/* ── 1. Top Section ────────────────────────────────────────── */}
-      <header className="flex flex-wrap items-baseline justify-between gap-4 border-b border-[var(--gridline)] pb-4">
+      <MotionSection
+        index={0}
+        as="header"
+        className="flex flex-wrap items-baseline justify-between gap-4 border-b border-[var(--gridline)] pb-3.5"
+      >
         <div>
           <h1 className="text-20 font-semibold tracking-[-0.01em] text-ink-primary">
             What-if simulator
           </h1>
           <p className="mt-0.5 text-12 text-ink-secondary">
-            Change an operating assumption and see how the plan changes.
+            Change inputs. See the plan change.
           </p>
         </div>
 
@@ -329,7 +347,7 @@ export default function SimulatorPage() {
           <button
             type="button"
             onClick={handleReset}
-            className="inline-flex items-center gap-1.5 rounded-control border border-[var(--ring)] bg-surface px-2.5 py-1 text-12 text-ink-secondary hover:text-ink-primary hover:bg-[var(--page)] transition-colors cursor-pointer"
+            className="btn-secondary text-11"
           >
             <svg
               width="12"
@@ -345,13 +363,16 @@ export default function SimulatorPage() {
               <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
               <path d="M3 3v5h5" />
             </svg>
-            Reset
+            <span>Reset</span>
           </button>
         </div>
-      </header>
+      </MotionSection>
 
       {/* ── 2. Unified Analytical Workspace Container ────────────── */}
-      <div className="rounded-panel border border-[var(--ring)] bg-surface divide-y divide-[var(--gridline)] overflow-hidden">
+      <MotionSection
+        index={1}
+        className="rounded-panel border border-[var(--ring)] bg-surface divide-y divide-[var(--gridline)] overflow-hidden"
+      >
         {/* Error notification if any */}
         {errorMsg && (
           <div className="border-b border-[var(--delta-neg)]/30 bg-[var(--delta-neg)]/8 px-4 py-2 text-12 text-[var(--delta-neg)]">
@@ -359,18 +380,28 @@ export default function SimulatorPage() {
           </div>
         )}
 
-        {/* ── UPPER MAIN GRID: Desktop 2-Column (~340px Left / Remainder Right) ── */}
-        <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] divide-y lg:divide-y-0 lg:divide-x divide-[var(--gridline)] items-stretch">
+        {/* ── UPPER MAIN GRID: Desktop 2-Column (~330px Left / Remainder Right) ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-[330px_1fr] divide-y lg:divide-y-0 lg:divide-x divide-[var(--gridline)] items-stretch">
           {/* ── LEFT COLUMN: Scenario Controls ─────────────────────── */}
           <div className="flex flex-col bg-surface">
             {/* Column Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--gridline)]">
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-[var(--gridline)]">
               <span className="text-11 font-semibold uppercase tracking-wider text-ink-muted">
                 Scenario controls
               </span>
-              {isUpdating && (
-                <span className="text-10 text-ink-muted animate-pulse">Calculating…</span>
-              )}
+              <AnimatePresence>
+                {isUpdating && (
+                  <motion.span
+                    initial={{ opacity: 0, x: 4 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -4 }}
+                    transition={{ duration: 0.18, ease: "easeOut" }}
+                    className="text-10 text-ink-muted inline-block"
+                  >
+                    Calculating…
+                  </motion.span>
+                )}
+              </AnimatePresence>
             </div>
 
             {/* Validation warning banner */}
@@ -385,10 +416,10 @@ export default function SimulatorPage() {
 
             {/* Grouped control sections separated by hairlines */}
             <div className="divide-y divide-[var(--gridline)]">
-              {/* BATTERY STORAGE LEVERS */}
-              <div className="p-4 flex flex-col gap-3">
+              {/* GROUP 1: BATTERY */}
+              <div className="p-3.5 flex flex-col gap-2.5">
                 <div className="flex items-baseline justify-between">
-                  <span className="text-12 font-medium text-ink-primary">Battery storage</span>
+                  <span className="text-12 font-semibold text-ink-primary">Battery</span>
                   <span className="text-10 text-ink-muted tabular-nums">
                     Base: {baselineDefaults.battery_power_mw ?? 0} MW · {baselineDefaults.battery_energy_mwh ?? 0} MWh
                   </span>
@@ -425,11 +456,11 @@ export default function SimulatorPage() {
                 />
               </div>
 
-              {/* DEMAND FLEXIBILITY */}
-              <div className="p-4 flex flex-col gap-3">
-                <span className="text-12 font-medium text-ink-primary">Flexible demand</span>
+              {/* GROUP 2: DEMAND */}
+              <div className="p-3.5 flex flex-col gap-2.5">
+                <span className="text-12 font-semibold text-ink-primary">Demand</span>
                 <SliderInput
-                  label="Demand shift"
+                  label="Flexible demand"
                   unit="MW"
                   min={0}
                   max={Math.round(capacity * 0.25)}
@@ -439,11 +470,11 @@ export default function SimulatorPage() {
                 />
               </div>
 
-              {/* BACKUP AVAILABILITY */}
-              <div className="p-4 flex flex-col gap-3">
-                <span className="text-12 font-medium text-ink-primary">Backup availability</span>
+              {/* GROUP 3: BACKUP */}
+              <div className="p-3.5 flex flex-col gap-2.5">
+                <span className="text-12 font-semibold text-ink-primary">Backup</span>
                 <SliderInput
-                  label="Thermal backup"
+                  label="Backup availability"
                   unit="MW"
                   min={0}
                   max={Math.round(capacity * 0.5)}
@@ -453,111 +484,139 @@ export default function SimulatorPage() {
                 />
               </div>
 
-              {/* ADVANCED ASSUMPTIONS (COLLAPSED BY DEFAULT) */}
-              <div className="p-4">
+              {/* GROUP 4: ADVANCED */}
+              <div className="p-3.5">
                 <button
                   type="button"
                   onClick={() => setShowAdvanced(!showAdvanced)}
                   className="flex items-center justify-between w-full text-left text-11 font-medium text-ink-muted hover:text-ink-primary transition-colors cursor-pointer"
+                  aria-expanded={showAdvanced}
                 >
-                  <span>Advanced assumptions</span>
+                  <span>Advanced</span>
                   <span>{showAdvanced ? "▴" : "▾"}</span>
                 </button>
 
-                {showAdvanced && (
-                  <div className="mt-3 pt-3 border-t border-[var(--gridline)]/80 flex flex-col gap-3 text-11">
-                    <NumberInput
-                      label="Round-trip efficiency"
-                      unit="%"
-                      min={60}
-                      max={98}
-                      step={1}
-                      value={batteryRtePct}
-                      onChange={setBatteryRtePct}
-                    />
+                <AnimatePresence initial={false}>
+                  {showAdvanced && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2, ease: "easeOut" }}
+                      className="overflow-hidden"
+                    >
+                      <div className="mt-3 pt-3 border-t border-[var(--gridline)]/80 flex flex-col gap-2.5 text-11">
+                        <NumberInput
+                          label="Round-trip efficiency"
+                          unit="%"
+                          min={60}
+                          max={98}
+                          step={1}
+                          value={batteryRtePct}
+                          onChange={setBatteryRtePct}
+                        />
 
-                    <div className="flex flex-col gap-1">
-                      <label htmlFor="ctl-notice" className="text-ink-muted">
-                        Backup notice
-                      </label>
-                      <select
-                        id="ctl-notice"
-                        value={backupNoticeHours}
-                        onChange={(e) => setBackupNoticeHours(Number(e.target.value))}
-                        className="rounded-control border border-[var(--ring)] bg-surface px-2 py-1 text-11 text-ink-primary cursor-pointer focus:outline-none focus:border-ink-primary"
-                      >
-                        <option value={0}>0 hours (instantaneous dispatch)</option>
-                        <option value={1}>1 hour (4 time blocks)</option>
-                        <option value={1.5}>1.5 hours (revision horizon)</option>
-                        <option value={2}>2 hours (8 time blocks)</option>
-                        <option value={4}>4 hours (16 time blocks)</option>
-                      </select>
-                    </div>
+                        <div className="flex flex-col gap-1">
+                          <label htmlFor="ctl-notice" className="text-ink-muted">
+                            Backup notice
+                          </label>
+                          <select
+                            id="ctl-notice"
+                            value={backupNoticeHours}
+                            onChange={(e) => setBackupNoticeHours(Number(e.target.value))}
+                            className="rounded-control border border-[var(--ring)] bg-surface px-2 py-1 text-11 text-ink-primary cursor-pointer focus:outline-none focus:border-ink-primary"
+                          >
+                            <option value={0}>0 hours (instantaneous dispatch)</option>
+                            <option value={1}>1 hour (4 time blocks)</option>
+                            <option value={1.5}>1.5 hours (revision horizon)</option>
+                            <option value={2}>2 hours (8 time blocks)</option>
+                            <option value={4}>4 hours (16 time blocks)</option>
+                          </select>
+                        </div>
 
-                    <NumberInput
-                      label="Grid export limit"
-                      unit="MW"
-                      min={Math.round(capacity * 0.3)}
-                      max={Math.round(capacity * 1.2)}
-                      step={25}
-                      value={evacuationLimitMw}
-                      onChange={setEvacuationLimitMw}
-                    />
+                        <NumberInput
+                          label="Grid export limit"
+                          unit="MW"
+                          min={Math.round(capacity * 0.3)}
+                          max={Math.round(capacity * 1.2)}
+                          step={25}
+                          value={evacuationLimitMw}
+                          onChange={setEvacuationLimitMw}
+                        />
 
-                    <div className="grid grid-cols-2 gap-2">
-                      <NumberInput
-                        label="PPA tariff"
-                        unit="₹/MWh"
-                        min={0}
-                        max={10000}
-                        step={100}
-                        value={tariffPerMwh}
-                        onChange={setTariffPerMwh}
-                      />
-                      <NumberInput
-                        label="Gas peaker cost"
-                        unit="₹/MWh"
-                        min={0}
-                        max={30000}
-                        step={500}
-                        value={gasPeakerCostPerMwh}
-                        onChange={setGasPeakerCostPerMwh}
-                      />
-                    </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <NumberInput
+                            label="PPA tariff"
+                            unit="₹/MWh"
+                            min={0}
+                            max={10000}
+                            step={100}
+                            value={tariffPerMwh}
+                            onChange={setTariffPerMwh}
+                          />
+                          <NumberInput
+                            label="Gas peaker cost"
+                            unit="₹/MWh"
+                            min={0}
+                            max={30000}
+                            step={500}
+                            value={gasPeakerCostPerMwh}
+                            onChange={setGasPeakerCostPerMwh}
+                          />
+                        </div>
 
-                    <NumberInput
-                      label="Diesel cost"
-                      unit="₹/MWh"
-                      min={0}
-                      max={50000}
-                      step={1000}
-                      value={dieselCostPerMwh}
-                      onChange={setDieselCostPerMwh}
-                    />
-                  </div>
-                )}
+                        <NumberInput
+                          label="Diesel cost"
+                          unit="₹/MWh"
+                          min={0}
+                          max={50000}
+                          step={1000}
+                          value={dieselCostPerMwh}
+                          onChange={setDieselCostPerMwh}
+                        />
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             </div>
           </div>
 
-          {/* ── RIGHT COLUMN: Scenario Result & 96-Block Graph ─────── */}
-          <div className="flex flex-col p-4 sm:p-5 gap-4">
-            {/* Main Result Statement */}
-            <div className="flex flex-col gap-1 pb-3 border-b border-[var(--gridline)]">
+          {/* ── RIGHT COLUMN: Primary Result & Hero Graph ─────────── */}
+          <div className="flex flex-col p-4 sm:p-5 gap-3.5">
+            {/* 1. Decisive Primary Result */}
+            <div
+              className={`flex flex-col gap-1 pb-3 border-b border-[var(--gridline)] transition-opacity duration-200 ease-out ${
+                isUpdating ? "opacity-75" : "opacity-100"
+              }`}
+            >
               <span className="text-11 font-semibold uppercase tracking-wider text-ink-muted">
                 Scenario result
               </span>
-              <div className="text-18 sm:text-20 font-semibold text-ink-primary tracking-[-0.01em]">
-                {primaryOutcome.headline}
+              <div className="min-h-[58px] flex flex-col justify-center">
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.div
+                    key={primaryOutcome.headline}
+                    initial={reducedMotion ? false : { opacity: 0, y: 3 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={reducedMotion ? undefined : { opacity: 0, y: -3 }}
+                    transition={{ duration: 0.2, ease: "easeOut" }}
+                    className="flex flex-col gap-1"
+                  >
+                    <div className="text-19 sm:text-22 font-bold text-ink-primary tracking-[-0.01em]">
+                      {primaryOutcome.headline}
+                    </div>
+                    {primaryOutcome.subline && (
+                      <div className="text-12 font-medium text-ink-secondary tabular-nums">
+                        {primaryOutcome.subline}
+                      </div>
+                    )}
+                  </motion.div>
+                </AnimatePresence>
               </div>
-              {primaryOutcome.subline && (
-                <div className="text-12 text-ink-secondary tabular-nums">
-                  {primaryOutcome.subline}
-                </div>
-              )}
             </div>
 
-            {/* Current vs Scenario 96-Block Dispatch Timeline Graph */}
+            {/* 2. Hero Visual: Current vs Scenario 96-Block Graph */}
             <div className="flex-1 flex flex-col justify-center">
               <SimulatorTimelineChart
                 timeline={simResult?.timeline ?? []}
@@ -567,18 +626,15 @@ export default function SimulatorPage() {
           </div>
         </div>
 
-        {/* ── LOWER SECTION 1: Baseline → Scenario impact ──────────── */}
-        <section className="p-4 sm:p-5 flex flex-col gap-3.5">
-          <div className="flex items-baseline justify-between border-b border-[var(--gridline)] pb-2">
-            <div>
-              <h2 className="text-12 font-semibold uppercase tracking-wider text-ink-muted">
-                Baseline → Scenario impact
-              </h2>
-            </div>
-            <span className="text-11 text-ink-muted">24-hour dispatch day (96 blocks)</span>
+        {/* ── LOWER SECTION 1: Baseline → Scenario impact ── */}
+        <section className="px-4 py-3 sm:px-5 sm:py-3.5 flex flex-col gap-2.5">
+          <div className="border-b border-[var(--gridline)] pb-2">
+            <h2 className="text-12 font-semibold uppercase tracking-wider text-ink-muted">
+              Baseline → Scenario impact
+            </h2>
           </div>
 
-          {/* Structured comparison table with aligned columns */}
+          {/* Structured comparison table without redundant Visual Shift bars */}
           <div className="overflow-x-auto">
             <table className="w-full text-left text-12">
               <thead>
@@ -592,7 +648,7 @@ export default function SimulatorPage() {
                   <th scope="col" className="py-2 px-4 text-right font-medium">
                     Scenario
                   </th>
-                  <th scope="col" className="py-2 pl-4 text-right font-semibold text-ink-primary">
+                  <th scope="col" className="py-2 pl-4 text-right font-bold text-ink-primary">
                     Change
                   </th>
                 </tr>
@@ -600,14 +656,14 @@ export default function SimulatorPage() {
               <tbody className="divide-y divide-[var(--gridline)] tabular-nums">
                 {/* Unserved */}
                 <tr>
-                  <td className="py-2.5 pr-4 font-medium text-ink-primary">Unserved energy</td>
-                  <td className="py-2.5 px-4 text-right text-ink-secondary">
+                  <td className="py-2 pr-4 font-medium text-ink-primary">Unserved energy</td>
+                  <td className="py-2 px-4 text-right text-ink-secondary">
                     {(simResult?.baseline.unserved_energy_mwh ?? 0).toFixed(1)} MWh
                   </td>
-                  <td className="py-2.5 px-4 text-right font-medium text-ink-primary">
-                    {(simResult?.scenario.unserved_energy_mwh ?? 0).toFixed(1)} MWh
+                  <td className="py-2 px-4 text-right font-medium text-ink-primary">
+                    <AnimatedValue val={simResult?.scenario.unserved_energy_mwh ?? 0} unit=" MWh" />
                   </td>
-                  <td className="py-2.5 pl-4 text-right text-13 font-bold">
+                  <td className="py-2 pl-4 text-right text-13 font-bold">
                     <DeltaValue
                       val={simResult?.deltas.unserved_energy_mwh ?? 0}
                       unit="MWh"
@@ -618,14 +674,14 @@ export default function SimulatorPage() {
 
                 {/* Curtailment */}
                 <tr>
-                  <td className="py-2.5 pr-4 font-medium text-ink-primary">Curtailed energy</td>
-                  <td className="py-2.5 px-4 text-right text-ink-secondary">
+                  <td className="py-2 pr-4 font-medium text-ink-primary">Curtailed energy</td>
+                  <td className="py-2 px-4 text-right text-ink-secondary">
                     {(simResult?.baseline.curtailed_energy_mwh ?? 0).toFixed(1)} MWh
                   </td>
-                  <td className="py-2.5 px-4 text-right font-medium text-ink-primary">
-                    {(simResult?.scenario.curtailed_energy_mwh ?? 0).toFixed(1)} MWh
+                  <td className="py-2 px-4 text-right font-medium text-ink-primary">
+                    <AnimatedValue val={simResult?.scenario.curtailed_energy_mwh ?? 0} unit=" MWh" />
                   </td>
-                  <td className="py-2.5 pl-4 text-right text-13 font-bold">
+                  <td className="py-2 pl-4 text-right text-13 font-bold">
                     <DeltaValue
                       val={simResult?.deltas.curtailed_energy_mwh ?? 0}
                       unit="MWh"
@@ -636,14 +692,14 @@ export default function SimulatorPage() {
 
                 {/* Cost */}
                 <tr>
-                  <td className="py-2.5 pr-4 font-medium text-ink-primary">Operating cost</td>
-                  <td className="py-2.5 px-4 text-right text-ink-secondary">
+                  <td className="py-2 pr-4 font-medium text-ink-primary">Operating cost</td>
+                  <td className="py-2 px-4 text-right text-ink-secondary">
                     {formatInr(simResult?.baseline.net_cost_inr ?? 0)}
                   </td>
-                  <td className="py-2.5 px-4 text-right font-medium text-ink-primary">
-                    {formatInr(simResult?.scenario.net_cost_inr ?? 0)}
+                  <td className="py-2 px-4 text-right font-medium text-ink-primary">
+                    <AnimatedValue val={simResult?.scenario.net_cost_inr ?? 0} formatFn={formatInr} />
                   </td>
-                  <td className="py-2.5 pl-4 text-right text-13 font-bold">
+                  <td className="py-2 pl-4 text-right text-13 font-bold">
                     <DeltaValue
                       val={simResult?.deltas.net_cost_inr ?? 0}
                       isCurrency={true}
@@ -654,14 +710,14 @@ export default function SimulatorPage() {
 
                 {/* CO2 */}
                 <tr>
-                  <td className="py-2.5 pr-4 font-medium text-ink-primary">CO₂ emissions</td>
-                  <td className="py-2.5 px-4 text-right text-ink-secondary">
+                  <td className="py-2 pr-4 font-medium text-ink-primary">CO₂</td>
+                  <td className="py-2 px-4 text-right text-ink-secondary">
                     {(simResult?.baseline.net_co2_tonnes ?? 0).toFixed(1)} t
                   </td>
-                  <td className="py-2.5 px-4 text-right font-medium text-ink-primary">
-                    {(simResult?.scenario.net_co2_tonnes ?? 0).toFixed(1)} t
+                  <td className="py-2 px-4 text-right font-medium text-ink-primary">
+                    <AnimatedValue val={simResult?.scenario.net_co2_tonnes ?? 0} unit=" t" />
                   </td>
-                  <td className="py-2.5 pl-4 text-right text-13 font-bold">
+                  <td className="py-2 pl-4 text-right text-13 font-bold">
                     <DeltaValue
                       val={simResult?.deltas.net_co2_tonnes ?? 0}
                       unit="t"
@@ -672,50 +728,10 @@ export default function SimulatorPage() {
               </tbody>
             </table>
           </div>
-
-          {/* Visual Shift bars */}
-          <div className="pt-2 border-t border-[var(--gridline)] flex flex-col gap-1">
-            <div className="flex items-center justify-between text-10 uppercase tracking-wider text-ink-muted pb-0.5">
-              <span className="w-28 font-medium">Visual shift</span>
-              <span className="flex-1 text-right pr-4 font-medium">Baseline</span>
-              <span className="w-3 text-center text-ink-muted/40 font-mono">│</span>
-              <span className="flex-1 text-left pl-4 font-medium">Scenario</span>
-            </div>
-
-            <VisualBarRow
-              label="Unserved"
-              baseVal={simResult?.baseline.unserved_energy_mwh ?? 0}
-              scenVal={simResult?.scenario.unserved_energy_mwh ?? 0}
-              unit="MWh"
-              isLowerBetter={true}
-            />
-            <VisualBarRow
-              label="Curtailment"
-              baseVal={simResult?.baseline.curtailed_energy_mwh ?? 0}
-              scenVal={simResult?.scenario.curtailed_energy_mwh ?? 0}
-              unit="MWh"
-              isLowerBetter={true}
-            />
-            <VisualBarRow
-              label="Cost"
-              baseVal={simResult?.baseline.net_cost_inr ?? 0}
-              scenVal={simResult?.scenario.net_cost_inr ?? 0}
-              unit=""
-              isCurrency={true}
-              isLowerBetter={true}
-            />
-            <VisualBarRow
-              label="CO₂"
-              baseVal={simResult?.baseline.net_co2_tonnes ?? 0}
-              scenVal={simResult?.scenario.net_co2_tonnes ?? 0}
-              unit="t"
-              isLowerBetter={true}
-            />
-          </div>
         </section>
 
-        {/* ── LOWER SECTION 2: Recommended response ────────────────── */}
-        <section className="p-4 sm:p-5 flex flex-col gap-3">
+        {/* ── LOWER SECTION 2: Recommended response (Clear Priority) ─ */}
+        <section className="px-4 py-3 sm:px-5 sm:py-3.5 flex flex-col gap-2.5">
           <div className="flex items-baseline justify-between border-b border-[var(--gridline)] pb-2">
             <h2 className="text-12 font-semibold uppercase tracking-wider text-ink-muted">
               Recommended response
@@ -726,51 +742,121 @@ export default function SimulatorPage() {
             </span>
           </div>
 
-          {simResult?.actions.length === 0 ? (
+          {(!simResult || simResult.actions.length === 0) ? (
             <div className="py-2 text-12 text-ink-muted">
               No operational dispatch action required under this scenario.
             </div>
           ) : (
-            <div className="flex flex-col gap-2">
-              {/* Primary clean numbered action rows */}
-              <div className="flex flex-col divide-y divide-[var(--gridline)]">
-                {simResult?.actions.slice(0, 3).map((act, i) => (
-                  <div
-                    key={`${act.action}-${act.block_start}-${i}`}
-                    className="py-2 flex items-baseline justify-between text-12"
+            <div className="flex flex-col gap-3">
+              {/* Primary Action (Action 1) */}
+              <AnimatePresence mode="wait">
+                {simResult.actions[0] && (
+                  <motion.div
+                    key={`${simResult.actions[0].action}-${simResult.actions[0].block_start}`}
+                    initial={reducedMotion ? false : { opacity: 0, y: 2 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={reducedMotion ? undefined : { opacity: 0, y: -2 }}
+                    transition={{ duration: 0.2, ease: "easeOut" }}
+                    className="flex flex-col gap-1"
                   >
-                    <div className="flex items-baseline gap-3">
-                      <span className="font-mono text-11 text-ink-muted w-4 font-semibold">
-                        {i + 1}.
-                      </span>
-                      <div>
-                        <div className="font-semibold text-ink-primary">
-                          {formatActionName(act.action)}
-                        </div>
-                        <div className="text-11 text-ink-muted tabular-nums mt-0.5">
-                          {blockRangeToTime(act.block_start, act.block_end)} · {act.magnitude_mw} MW · {act.energy_mwh} MWh
+                    <span className="text-10 font-bold uppercase tracking-wider text-[var(--series-1)]">
+                      Primary:
+                    </span>
+                    <div className="py-2.5 px-3 rounded-control bg-[var(--page)]/50 border border-[var(--gridline)] flex items-baseline justify-between text-12">
+                      <div className="flex items-baseline gap-2.5">
+                        <span className="font-mono text-11 text-ink-muted w-4 font-bold">1.</span>
+                        <div>
+                          <div className="font-bold text-13 text-ink-primary">
+                            {formatActionName(simResult.actions[0].action)}
+                          </div>
+                          <div className="text-11 text-ink-secondary tabular-nums mt-0.5">
+                            <span className="font-medium text-ink-primary">
+                              {blockRangeToTime(simResult.actions[0].block_start, simResult.actions[0].block_end)}
+                            </span>
+                            <span className="text-ink-muted"> · </span>
+                            <span>{simResult.actions[0].magnitude_mw} MW</span>
+                            <span className="text-ink-muted"> · </span>
+                            <span>{simResult.actions[0].energy_mwh} MWh</span>
+                          </div>
                         </div>
                       </div>
+                      <div className="tabular-nums text-11 font-medium text-right">
+                        <span
+                          className={
+                            simResult.actions[0].cost_inr < 0
+                              ? "text-[var(--delta-pos)] font-semibold"
+                              : simResult.actions[0].cost_inr > 0
+                                ? "text-ink-secondary"
+                                : "text-ink-muted"
+                          }
+                        >
+                          {simResult.actions[0].cost_inr < 0
+                            ? `−₹${Math.abs(simResult.actions[0].cost_inr).toLocaleString("en-IN")}`
+                            : `+₹${simResult.actions[0].cost_inr.toLocaleString("en-IN")}`}
+                        </span>
+                      </div>
                     </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
-                    <div className="tabular-nums text-11 font-medium">
-                      <span
-                        className={
-                          act.cost_inr < 0
-                            ? "text-[var(--delta-pos)]"
-                            : act.cost_inr > 0
-                              ? "text-ink-secondary"
-                              : "text-ink-muted"
-                        }
-                      >
-                        {act.cost_inr < 0
-                          ? `−₹${Math.abs(act.cost_inr).toLocaleString("en-IN")}`
-                          : `+₹${act.cost_inr.toLocaleString("en-IN")}`}
-                      </span>
-                    </div>
+              {/* Secondary Actions (Actions 2+) */}
+              {simResult.actions.length > 1 && (
+                <div className="flex flex-col gap-1">
+                  <span className="text-10 font-bold uppercase tracking-wider text-ink-muted">
+                    Secondary:
+                  </span>
+                  <div className="flex flex-col divide-y divide-[var(--gridline)] rounded-control bg-surface border border-[var(--gridline)] px-3">
+                    <AnimatePresence initial={false}>
+                      {simResult.actions.slice(1, 3).map((act, i) => (
+                        <motion.div
+                          key={`${act.action}-${act.block_start}-${i}`}
+                          initial={reducedMotion ? false : { opacity: 0, y: 2 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={reducedMotion ? undefined : { opacity: 0, y: -2 }}
+                          transition={{ duration: 0.2, ease: "easeOut" }}
+                          className="py-2.5 flex items-baseline justify-between text-12"
+                        >
+                          <div className="flex items-baseline gap-2.5">
+                            <span className="font-mono text-11 text-ink-muted w-4 font-bold">
+                              {i + 2}.
+                            </span>
+                            <div>
+                              <div className="font-bold text-12 text-ink-primary">
+                                {formatActionName(act.action)}
+                              </div>
+                              <div className="text-11 text-ink-secondary tabular-nums mt-0.5">
+                                <span className="font-medium text-ink-primary">
+                                  {blockRangeToTime(act.block_start, act.block_end)}
+                                </span>
+                                <span className="text-ink-muted"> · </span>
+                                <span>{act.magnitude_mw} MW</span>
+                                <span className="text-ink-muted"> · </span>
+                                <span>{act.energy_mwh} MWh</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="tabular-nums text-11 font-medium text-right">
+                            <span
+                              className={
+                                act.cost_inr < 0
+                                  ? "text-[var(--delta-pos)] font-semibold"
+                                  : act.cost_inr > 0
+                                    ? "text-ink-secondary"
+                                    : "text-ink-muted"
+                              }
+                            >
+                              {act.cost_inr < 0
+                                ? `−₹${Math.abs(act.cost_inr).toLocaleString("en-IN")}`
+                                : `+₹${act.cost_inr.toLocaleString("en-IN")}`}
+                            </span>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </AnimatePresence>
                   </div>
-                ))}
-              </div>
+                </div>
+              )}
 
               {/* View detailed dispatch plan toggle */}
               {simResult && simResult.actions.length > 0 && (
@@ -778,7 +864,7 @@ export default function SimulatorPage() {
                   <button
                     type="button"
                     onClick={() => setShowFullActions(!showFullActions)}
-                    className="text-11 font-medium text-ink-muted hover:text-ink-primary transition-colors cursor-pointer inline-flex items-center gap-1"
+                    className="btn-secondary text-11"
                   >
                     <span>
                       {showFullActions
@@ -787,51 +873,60 @@ export default function SimulatorPage() {
                     </span>
                   </button>
 
-                  {showFullActions && (
-                    <div className="mt-2.5 divide-y divide-[var(--gridline)] border-t border-[var(--gridline)] pt-2">
-                      {simResult.actions.map((act, i) => (
-                        <div key={i} className="py-2 flex flex-col gap-0.5 text-12">
-                          <div className="flex items-center justify-between">
-                            <span className="font-medium text-ink-primary">
-                              {i + 1}. {formatActionName(act.action)}
-                            </span>
-                            <span className="text-11 tabular-nums font-medium text-ink-secondary">
-                              {act.magnitude_mw} MW · {act.energy_mwh} MWh ·{" "}
-                              <span className={act.cost_inr < 0 ? "text-[var(--delta-pos)]" : ""}>
-                                {act.cost_inr < 0
-                                  ? `−₹${Math.abs(act.cost_inr).toLocaleString("en-IN")}`
-                                  : `+₹${act.cost_inr.toLocaleString("en-IN")}`}
-                              </span>
-                            </span>
-                          </div>
-                          <div className="flex items-baseline justify-between text-11 text-ink-muted">
-                            <span>{act.rationale}</span>
-                            <span className="tabular-nums font-mono">
-                              Blocks {act.block_start}–{act.block_end}
-                            </span>
-                          </div>
+                  <AnimatePresence initial={false}>
+                    {showFullActions && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2, ease: "easeOut" }}
+                        className="overflow-hidden"
+                      >
+                        <div className="mt-2.5 divide-y divide-[var(--gridline)] border-t border-[var(--gridline)] pt-2">
+                          {simResult.actions.map((act, i) => (
+                            <div key={i} className="py-2 flex flex-col gap-0.5 text-12">
+                              <div className="flex items-center justify-between">
+                                <span className="font-medium text-ink-primary">
+                                  {i + 1}. {formatActionName(act.action)}
+                                </span>
+                                <span className="text-11 tabular-nums font-medium text-ink-secondary">
+                                  {act.magnitude_mw} MW · {act.energy_mwh} MWh ·{" "}
+                                  <span className={act.cost_inr < 0 ? "text-[var(--delta-pos)] font-semibold" : ""}>
+                                    {act.cost_inr < 0
+                                      ? `−₹${Math.abs(act.cost_inr).toLocaleString("en-IN")}`
+                                      : `+₹${act.cost_inr.toLocaleString("en-IN")}`}
+                                  </span>
+                                </span>
+                              </div>
+                              <div className="flex items-baseline justify-between text-11 text-ink-muted">
+                                <span>{act.rationale}</span>
+                                <span className="tabular-nums font-mono">
+                                  Blocks {act.block_start}–{act.block_end}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
-                  )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               )}
             </div>
           )}
         </section>
 
-        {/* ── LOWER SECTION 3: Break-Even Battery ──────────────────── */}
-        <section className="p-4 sm:p-5 flex flex-col gap-2.5">
+        {/* ── LOWER SECTION 3: Break-Even Battery (Decision-Oriented) ─ */}
+        <section className="px-4 py-3 sm:px-5 sm:py-3.5 flex flex-col gap-2.5">
           <div className="flex items-center justify-between border-b border-[var(--gridline)] pb-2">
-            <div>
-              <h2 className="text-12 font-semibold uppercase tracking-wider text-ink-muted">
-                Break-even battery
-              </h2>
-              <p className="text-11 text-ink-muted mt-0.5">
-                Smallest battery that removes this deficit
-              </p>
-            </div>
-            <span
+            <h2 className="text-12 font-semibold uppercase tracking-wider text-ink-muted">
+              Break-even battery
+            </h2>
+            <motion.span
+              key={simResult?.break_even.feasible ? "feasible" : "bound"}
+              initial={reducedMotion ? false : { opacity: 0.8 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
               className={`rounded-control px-2 py-0.5 text-10 font-medium ${
                 simResult?.break_even.feasible
                   ? "bg-[var(--delta-pos)]/12 text-[var(--delta-pos)]"
@@ -839,127 +934,199 @@ export default function SimulatorPage() {
               }`}
             >
               {simResult?.break_even.feasible ? "Feasible" : "Constraint Bound"}
-            </span>
+            </motion.span>
           </div>
 
-          {!hasDeficit ? (
-            <div className="text-13 font-medium text-[var(--delta-pos)] pt-1">
-              No additional battery required under this scenario.
-            </div>
-          ) : (
-            <div className="flex flex-col gap-1 pt-1">
-              <div className="text-18 sm:text-20 font-bold tracking-tight text-ink-primary tabular-nums">
-                {minPower} MW · {minEnergy} MWh
-              </div>
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-11 text-ink-muted pt-0.5">
-                <span>
-                  Current battery:{" "}
-                  <strong className="text-ink-primary font-medium">
-                    {batteryPowerMw} MW · {batteryEnergyMwh} MWh
-                  </strong>
-                </span>
-                {meetsBreakEven ? (
-                  <span className="text-[var(--delta-pos)] font-medium">
-                    Current battery meets or exceeds break-even.
-                  </span>
-                ) : (
-                  <span>
-                    Additional required:{" "}
-                    <strong className="text-ink-primary font-medium">
-                      +{Math.max(0, minPower - batteryPowerMw)} MW · +
-                      {Math.max(0, minEnergy - batteryEnergyMwh)} MWh
-                    </strong>
-                  </span>
-                )}
-              </div>
-            </div>
-          )}
+          <AnimatePresence mode="wait" initial={false}>
+            {!hasDeficit ? (
+              <motion.div
+                key="no-deficit"
+                initial={reducedMotion ? false : { opacity: 0, y: 2 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={reducedMotion ? undefined : { opacity: 0, y: -2 }}
+                transition={{ duration: 0.2, ease: "easeOut" }}
+                className="flex flex-col gap-1.5 pt-0.5"
+              >
+                <div className="text-18 sm:text-20 font-bold text-[var(--delta-pos)] tracking-tight">
+                  No additional battery required.
+                </div>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-x-6 gap-y-1 text-11 pt-1 border-t border-[var(--gridline)]/60">
+                  <div>
+                    <span className="text-ink-muted">Current: </span>
+                    <span className="font-semibold text-ink-primary tabular-nums">
+                      {batteryPowerMw} MW · {batteryEnergyMwh} MWh
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-ink-muted">Status: </span>
+                    <span className="font-semibold text-[var(--delta-pos)]">
+                      Current battery meets or exceeds break-even.
+                    </span>
+                  </div>
+                </div>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="has-deficit"
+                initial={reducedMotion ? false : { opacity: 0, y: 2 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={reducedMotion ? undefined : { opacity: 0, y: -2 }}
+                transition={{ duration: 0.2, ease: "easeOut" }}
+                className="flex flex-col gap-1.5 pt-0.5"
+              >
+                <div className="text-18 sm:text-20 font-bold tracking-tight text-ink-primary tabular-nums">
+                  <AnimatedValue val={minPower} decimals={0} /> MW · <AnimatedValue val={minEnergy} decimals={0} /> MWh
+                </div>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-x-6 gap-y-1 text-11 pt-1 border-t border-[var(--gridline)]/60">
+                  <div>
+                    <span className="text-ink-muted">Current: </span>
+                    <span className="font-semibold text-ink-primary tabular-nums">
+                      {batteryPowerMw} MW · {batteryEnergyMwh} MWh
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-ink-muted">Status: </span>
+                    {meetsBreakEven ? (
+                      <span className="font-semibold text-[var(--delta-pos)]">
+                        Current battery meets or exceeds break-even.
+                      </span>
+                    ) : (
+                      <span className="font-semibold text-ink-primary tabular-nums">
+                        Additional needed: +{Math.max(0, minPower - batteryPowerMw)} MW · +
+                        {Math.max(0, minEnergy - batteryEnergyMwh)} MWh
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </section>
 
-        {/* ── LOWER SECTION 4: How the result changed ▾ ────────────── */}
-        <section className="p-4 sm:p-5 flex flex-col gap-3">
-          <button
-            type="button"
-            onClick={() => setShowFullAttribution(!showFullAttribution)}
-            className="flex items-center justify-between text-left cursor-pointer w-full group"
-          >
-            <div>
-              <h2 className="text-12 font-semibold uppercase tracking-wider text-ink-muted group-hover:text-ink-primary transition-colors">
-                How the result changed {showFullAttribution ? "▴" : "▾"}
-              </h2>
-              <p className="text-11 text-ink-muted mt-0.5">
-                Sequential impact across individual operating levels
-              </p>
-            </div>
-            <span className="text-11 font-medium text-ink-secondary group-hover:text-ink-primary transition-colors">
-              {showFullAttribution ? "Hide details ▴" : "Show details ▾"}
-            </span>
-          </button>
+        {/* ── LOWER SECTION 4: How the result changed (Advanced Attribution) ── */}
+        <section className="px-4 py-3 sm:px-5 sm:py-3.5 flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <h2 className="text-12 font-semibold uppercase tracking-wider text-ink-muted">
+              How the result changed
+            </h2>
+            <button
+              type="button"
+              onClick={() => setShowFullAttribution(!showFullAttribution)}
+              className="btn-secondary text-11"
+              aria-expanded={showFullAttribution}
+            >
+              <span>{showFullAttribution ? "Hide details ▴" : "Show details ▾"}</span>
+            </button>
+          </div>
 
-          {/* Compact collapsed state showing Battery, Demand, Grid, Backup, Economics with deltas */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-2 border-t border-[var(--gridline)]">
+          {/* Compact one-line summary of lever deltas (shown in collapsed state) */}
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-11 tabular-nums pt-1 border-t border-[var(--gridline)]">
             {attributionSummary.map((item) => (
-              <div
-                key={item.label}
-                className="flex flex-col py-1.5 px-2 rounded-control bg-[var(--page)]/60 border border-[var(--gridline)]"
-              >
-                <span className="text-10 font-medium uppercase tracking-wider text-ink-muted truncate">
-                  {item.label}
-                </span>
-                <span className={`text-11 font-semibold tabular-nums mt-0.5 ${item.colorClass}`}>
-                  {item.deltaText}
-                </span>
+              <div key={item.label} className="inline-flex items-center gap-1.5">
+                <span className="text-ink-muted font-medium">{item.label}</span>
+                <span className={`font-semibold ${item.colorClass}`}>{item.deltaText}</span>
               </div>
             ))}
           </div>
 
-          {/* Full attribution table only when expanded */}
-          {showFullAttribution && simResult && (
-            <div className="overflow-x-auto pt-2 border-t border-[var(--gridline)]">
-              <table className="w-full text-left text-11">
-                <thead>
-                  <tr className="border-b border-[var(--gridline)] text-ink-muted uppercase tracking-wider">
-                    <th className="py-1.5 font-medium">Lever</th>
-                    <th className="py-1.5 text-right font-medium">Unserved Δ</th>
-                    <th className="py-1.5 text-right font-medium">Curtailed Δ</th>
-                    <th className="py-1.5 text-right font-medium">Cost Δ</th>
-                    <th className="py-1.5 text-right font-medium">CO₂ Δ</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[var(--gridline)] tabular-nums">
-                  {simResult.attribution.map((item) => (
-                    <tr key={item.lever}>
-                      <td className="py-1.5 font-medium text-ink-primary">{item.lever}</td>
-                      <td className="py-1.5 text-right text-ink-secondary">
-                        {formatDelta(item.unserved_delta_mwh, 1)} MWh
-                      </td>
-                      <td className="py-1.5 text-right text-ink-secondary">
-                        {formatDelta(item.curtailed_delta_mwh, 1)} MWh
-                      </td>
-                      <td className="py-1.5 text-right font-medium">
-                        <span
-                          className={
-                            item.cost_delta_inr < 0
-                              ? "text-[var(--delta-pos)]"
-                              : item.cost_delta_inr > 0
-                                ? "text-[var(--delta-neg)]"
-                                : "text-ink-secondary"
-                          }
-                        >
-                          {formatInrDelta(item.cost_delta_inr)}
-                        </span>
-                      </td>
-                      <td className="py-1.5 text-right text-ink-secondary">
-                        {formatDelta(item.co2_delta_tonnes, 2)} t
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          {/* Full attribution details & Visual Shift revealed ONLY when user clicks "Show details" */}
+          <AnimatePresence initial={false}>
+            {showFullAttribution && simResult && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.22, ease: "easeOut" }}
+                className="overflow-hidden flex flex-col gap-3 pt-2.5 border-t border-[var(--gridline)]"
+              >
+                {/* Table of Levers */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-11">
+                    <thead>
+                      <tr className="border-b border-[var(--gridline)] text-ink-muted uppercase tracking-wider">
+                        <th className="py-1.5 font-medium">Lever</th>
+                        <th className="py-1.5 text-right font-medium">Unserved Δ</th>
+                        <th className="py-1.5 text-right font-medium">Curtailed Δ</th>
+                        <th className="py-1.5 text-right font-medium">Cost Δ</th>
+                        <th className="py-1.5 text-right font-medium">CO₂ Δ</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[var(--gridline)] tabular-nums">
+                      {simResult.attribution.map((item) => (
+                        <tr key={item.lever}>
+                          <td className="py-1.5 font-medium text-ink-primary">{item.lever}</td>
+                          <td className="py-1.5 text-right text-ink-secondary">
+                            {formatDelta(item.unserved_delta_mwh, 1)} MWh
+                          </td>
+                          <td className="py-1.5 text-right text-ink-secondary">
+                            {formatDelta(item.curtailed_delta_mwh, 1)} MWh
+                          </td>
+                          <td className="py-1.5 text-right font-medium">
+                            <span
+                              className={
+                                item.cost_delta_inr < 0
+                                  ? "text-[var(--delta-pos)] font-semibold"
+                                  : item.cost_delta_inr > 0
+                                    ? "text-[var(--delta-neg)]"
+                                    : "text-ink-secondary"
+                              }
+                            >
+                              {formatInrDelta(item.cost_delta_inr)}
+                            </span>
+                          </td>
+                          <td className="py-1.5 text-right text-ink-secondary">
+                            {formatDelta(item.co2_delta_tonnes, 2)} t
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Visual Shift comparison bars preserved in advanced section */}
+                <div className="pt-2 border-t border-[var(--gridline)] flex flex-col gap-1">
+                  <div className="flex items-center justify-between text-10 uppercase tracking-wider text-ink-muted pb-0.5">
+                    <span className="w-28 font-medium">Visual shift</span>
+                    <span className="flex-1 text-right pr-4 font-medium">Baseline</span>
+                    <span className="w-3 text-center text-ink-muted/40 font-mono">│</span>
+                    <span className="flex-1 text-left pl-4 font-medium">Scenario</span>
+                  </div>
+
+                  <VisualBarRow
+                    label="Unserved"
+                    baseVal={simResult?.baseline.unserved_energy_mwh ?? 0}
+                    scenVal={simResult?.scenario.unserved_energy_mwh ?? 0}
+                    unit="MWh"
+                    isLowerBetter={true}
+                  />
+                  <VisualBarRow
+                    label="Curtailment"
+                    baseVal={simResult?.baseline.curtailed_energy_mwh ?? 0}
+                    scenVal={simResult?.scenario.curtailed_energy_mwh ?? 0}
+                    unit="MWh"
+                    isLowerBetter={true}
+                  />
+                  <VisualBarRow
+                    label="Cost"
+                    baseVal={simResult?.baseline.net_cost_inr ?? 0}
+                    scenVal={simResult?.scenario.net_cost_inr ?? 0}
+                    unit=""
+                    isCurrency={true}
+                    isLowerBetter={true}
+                  />
+                  <VisualBarRow
+                    label="CO₂"
+                    baseVal={simResult?.baseline.net_co2_tonnes ?? 0}
+                    scenVal={simResult?.scenario.net_co2_tonnes ?? 0}
+                    unit="t"
+                    isLowerBetter={true}
+                  />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </section>
-      </div>
+      </MotionSection>
     </main>
   );
 }
@@ -973,11 +1140,12 @@ function SimulatorTimelineChart({
   timeline: SimulatorTimelineBlock[];
   capacityMw: number;
 }) {
+  const reducedMotion = usePrefersReducedMotion();
   const [hoveredBlock, setHoveredBlock] = useState<SimulatorTimelineBlock | null>(null);
 
   if (!timeline || timeline.length === 0) {
     return (
-      <div className="h-56 flex items-center justify-center text-11 text-ink-muted">
+      <div className="h-64 flex items-center justify-center text-11 text-ink-muted">
         Timeline loading…
       </div>
     );
@@ -991,9 +1159,9 @@ function SimulatorTimelineChart({
   );
   const maxScale = Math.ceil((maxDataMw * 1.06) / 100) * 100;
 
-  // Dimensions
+  // Dimensions (taller for hero visual hierarchy)
   const svgWidth = 920;
-  const svgHeight = 260;
+  const svgHeight = 290;
   const padLeft = 48;
   const padRight = 16;
   const padTop = 18;
@@ -1154,8 +1322,8 @@ function SimulatorTimelineChart({
             </div>
           </>
         ) : (
-          <span className="text-10 text-ink-muted">
-            Hover blocks across the timeline to inspect dispatch values
+          <span className="text-10 text-ink-muted tabular-nums">
+            96 blocks (00:00–24:00)
           </span>
         )}
       </div>
@@ -1214,24 +1382,44 @@ function SimulatorTimelineChart({
           )}
 
           {/* Shaded Area: Shortfall Cleared by Scenario (Green Wash) */}
-          {clearedShortfallPolygons.map((d, idx) => (
-            <path
-              key={`cleared-${idx}`}
-              d={d}
-              fill="var(--delta-pos)"
-              fillOpacity="0.18"
-            />
-          ))}
+          <AnimatePresence>
+            {clearedShortfallPolygons.map((d, idx) => (
+              <motion.path
+                key={`cleared-${idx}`}
+                d={d}
+                fill="var(--delta-pos)"
+                fillOpacity="0.18"
+                initial={reducedMotion ? false : { opacity: 0 }}
+                animate={{ opacity: 1, d }}
+                exit={{ opacity: 0 }}
+                transition={
+                  reducedMotion
+                    ? { duration: 0 }
+                    : { duration: 0.22, ease: "easeOut" }
+                }
+              />
+            ))}
+          </AnimatePresence>
 
           {/* Shaded Area: Remaining Deficit below Schedule (Red Wash) */}
-          {remainingDeficitPolygons.map((d, idx) => (
-            <path
-              key={`def-${idx}`}
-              d={d}
-              fill="var(--delta-neg)"
-              fillOpacity="0.2"
-            />
-          ))}
+          <AnimatePresence>
+            {remainingDeficitPolygons.map((d, idx) => (
+              <motion.path
+                key={`def-${idx}`}
+                d={d}
+                fill="var(--delta-neg)"
+                fillOpacity="0.2"
+                initial={reducedMotion ? false : { opacity: 0 }}
+                animate={{ opacity: 1, d }}
+                exit={{ opacity: 0 }}
+                transition={
+                  reducedMotion
+                    ? { duration: 0 }
+                    : { duration: 0.22, ease: "easeOut" }
+                }
+              />
+            ))}
+          </AnimatePresence>
 
           {/* Declared Schedule Line */}
           <path
@@ -1251,12 +1439,18 @@ function SimulatorTimelineChart({
             strokeWidth="1.6"
           />
 
-          {/* Scenario Plan Line */}
-          <path
+          {/* Scenario Plan Line — Smoothly interpolates between scenario states */}
+          <motion.path
             d={scenarioPath}
             fill="none"
             stroke="var(--series-1)"
             strokeWidth="2.2"
+            animate={{ d: scenarioPath }}
+            transition={
+              reducedMotion
+                ? { duration: 0 }
+                : { duration: 0.25, ease: "easeOut" }
+            }
           />
 
           {/* Hover Scrub Column */}
@@ -1436,6 +1630,114 @@ function NumberInput({
   );
 }
 
+function usePrefersReducedMotion(): boolean {
+  const [reducedMotion, setReducedMotion] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    setReducedMotion(mq.matches);
+    const listener = (e: MediaQueryListEvent) => setReducedMotion(e.matches);
+    mq.addEventListener("change", listener);
+    return () => mq.removeEventListener("change", listener);
+  }, []);
+  return reducedMotion;
+}
+
+function useAnimatedNumber(
+  targetValue: number,
+  formatFn: (val: number) => string,
+  duration = 260
+): string {
+  const formatFnRef = useRef(formatFn);
+  formatFnRef.current = formatFn;
+
+  const [displayStr, setDisplayStr] = useState(() => formatFn(targetValue));
+  const currentValRef = useRef<number>(targetValue);
+  const targetValRef = useRef<number>(targetValue);
+  const animFrameRef = useRef<number | null>(null);
+  const isFirstRender = useRef(true);
+
+  const reducedMotion = usePrefersReducedMotion();
+
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      currentValRef.current = targetValue;
+      targetValRef.current = targetValue;
+      setDisplayStr(formatFnRef.current(targetValue));
+      return;
+    }
+
+    if (reducedMotion) {
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      currentValRef.current = targetValue;
+      targetValRef.current = targetValue;
+      setDisplayStr(formatFnRef.current(targetValue));
+      return;
+    }
+
+    const startVal = currentValRef.current;
+    const endVal = targetValue;
+
+    if (Math.abs(startVal - endVal) < 0.001) {
+      targetValRef.current = targetValue;
+      currentValRef.current = targetValue;
+      setDisplayStr(formatFnRef.current(targetValue));
+      return;
+    }
+
+    targetValRef.current = targetValue;
+    const startTime = performance.now();
+
+    if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+
+    const tick = (now: number) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(1, elapsed / duration);
+      // Smooth ease-out cubic
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const current = startVal + (endVal - startVal) * eased;
+      currentValRef.current = current;
+
+      if (progress < 1) {
+        setDisplayStr(formatFnRef.current(current));
+        animFrameRef.current = requestAnimationFrame(tick);
+      } else {
+        currentValRef.current = endVal;
+        setDisplayStr(formatFnRef.current(endVal));
+        animFrameRef.current = null;
+      }
+    };
+
+    animFrameRef.current = requestAnimationFrame(tick);
+
+    return () => {
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    };
+  }, [targetValue, duration, reducedMotion]);
+
+  return displayStr;
+}
+
+function AnimatedValue({
+  val,
+  unit = "",
+  decimals = 1,
+  formatFn,
+}: {
+  val: number;
+  unit?: string;
+  decimals?: number;
+  formatFn?: (v: number) => string;
+}) {
+  const formatter = useMemo(
+    () => formatFn ?? ((v: number) => `${v.toFixed(decimals)}${unit}`),
+    [formatFn, decimals, unit]
+  );
+  const display = useAnimatedNumber(val, formatter, 260);
+  return <span>{display}</span>;
+}
+
 function DeltaValue({
   val,
   unit = "",
@@ -1447,22 +1749,44 @@ function DeltaValue({
   isCurrency?: boolean;
   isLowerBetter?: boolean;
 }) {
+  const reducedMotion = usePrefersReducedMotion();
   const isZero = Math.abs(val) < (isCurrency ? 10 : 0.01);
+
+  const formatter = useMemo(() => {
+    if (isCurrency) {
+      return (v: number) => formatInrDelta(v);
+    }
+    return (v: number) => {
+      if (Math.abs(v) < 0.01) return `0.0 ${unit}`;
+      const sign = v > 0 ? "+" : "−";
+      return `${sign}${Math.abs(v).toFixed(1)} ${unit}`;
+    };
+  }, [isCurrency, unit]);
+
+  const animatedText = useAnimatedNumber(val, formatter, 260);
+
   if (isZero) {
-    return <span className="text-ink-muted">0 {unit}</span>;
+    return <span className="text-ink-muted font-normal">0 {unit}</span>;
   }
 
   const improved = isLowerBetter ? val < 0 : val > 0;
   const colorClass = improved ? "text-[var(--delta-pos)]" : "text-[var(--delta-neg)]";
   const arrow = val < 0 ? "↓" : "↑";
-  const formatted = isCurrency
-    ? formatInrDelta(val)
-    : `${val > 0 ? "+" : "−"}${Math.abs(val).toFixed(1)} ${unit}`;
 
   return (
-    <span className={colorClass}>
-      {formatted} {arrow}
-    </span>
+    <motion.span
+      key={improved ? "improved" : "worsened"}
+      initial={reducedMotion ? false : { opacity: 0.8, scale: 0.98 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.2, ease: "easeOut" }}
+      className={`inline-flex items-center gap-1 font-bold ${colorClass}`}
+    >
+      <span>{animatedText}</span>
+      <span aria-hidden="true">{arrow}</span>
+      <span className="text-10 font-medium uppercase tracking-wider opacity-85 ml-0.5">
+        ({improved ? "improved" : "worsened"})
+      </span>
+    </motion.span>
   );
 }
 

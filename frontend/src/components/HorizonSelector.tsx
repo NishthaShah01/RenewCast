@@ -60,7 +60,7 @@ export function HorizonSelector({ value }: { value: Horizon }) {
       role="group"
       aria-label="Forecast window"
       aria-busy={pending}
-      className="inline-flex items-center overflow-hidden rounded-control border border-[var(--ring)]"
+      className="inline-flex items-center overflow-hidden rounded-control border border-[var(--ring)] transition-opacity duration-200"
       style={{ opacity: pending ? 0.6 : 1 }}
     >
       {HORIZON_OPTIONS.map((option) => {
@@ -71,7 +71,7 @@ export function HorizonSelector({ value }: { value: Horizon }) {
             type="button"
             aria-pressed={active}
             onClick={() => select(option)}
-            className="border-r border-[var(--gridline)] px-2.5 py-1 text-11 font-medium tabular-nums last:border-r-0"
+            className="border-r border-[var(--gridline)] px-2.5 py-1 text-11 font-medium tabular-nums last:border-r-0 active:scale-[0.98] transition-all duration-150"
             style={
               active
                 ? { background: "var(--ink-primary)", color: "var(--surface)" }

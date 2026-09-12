@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { motion } from "motion/react";
 
 import { api, ApiError } from "@/lib/api";
 import type { CopilotResponse } from "@/lib/types";
@@ -67,8 +68,7 @@ export function Copilot({ siteId, siteName }: { siteId: string; siteName: string
           <button
             type="submit"
             disabled={pending || !question.trim()}
-            className="rounded-control px-3 py-2 text-14 font-medium text-[var(--surface)] disabled:opacity-40"
-            style={{ background: "var(--ink-primary)" }}
+            className="btn-primary text-13 px-4 py-2"
           >
             {pending ? "Asking" : "Ask"}
           </button>
@@ -83,7 +83,7 @@ export function Copilot({ siteId, siteName }: { siteId: string; siteName: string
                   setQuestion(s);
                   ask(s);
                 }}
-                className="rounded-pill border border-[var(--ring)] px-3 py-1 text-12 text-ink-secondary"
+                className="btn-secondary rounded-pill text-11 px-3 py-1 font-normal"
               >
                 {s}
               </button>
@@ -98,14 +98,20 @@ export function Copilot({ siteId, siteName }: { siteId: string; siteName: string
         ) : null}
 
         {reply ? (
-          <div className="mt-4 border-l-2 pl-3" style={{ borderColor: "var(--series-1)" }}>
+          <motion.div
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.18, ease: "easeOut" }}
+            className="mt-4 border-l-2 pl-3"
+            style={{ borderColor: "var(--series-1)" }}
+          >
             <p className="max-w-[86ch] text-14">{reply.answer}</p>
             <p className="mt-2 text-11 text-ink-muted">
               {reply.mode === "gemini"
                 ? "Written by Gemini from the plan's own figures — it is not allowed to compute new ones."
                 : "Rule-based narration. No API key is configured, and the numbers are identical either way."}
             </p>
-          </div>
+          </motion.div>
         ) : null}
       </div>
     </section>

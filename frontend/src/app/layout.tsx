@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import { IBM_Plex_Sans, IBM_Plex_Sans_Condensed } from "next/font/google";
 import Link from "next/link";
 
+import { AppNav } from "@/components/AppNav";
 import { BlockClock } from "@/components/BlockClock";
 import { OfflineBanner } from "@/components/OfflineBanner";
+import { PageTransition } from "@/components/PageTransition";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
 import "./globals.css";
@@ -37,6 +39,13 @@ export const metadata: Metadata = {
   description:
     "Probabilistic 72-hour solar and wind generation forecasts for Indian grid " +
     "operators, aligned to the 96-block despatch day.",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon.png", type: "image/png" },
+    ],
+    apple: "/apple-touch-icon.png",
+  },
 };
 
 /**
@@ -68,36 +77,45 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP }} />
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="icon" href="/icon.png" type="image/png" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
       </head>
       <body className="flex min-h-full flex-col">
-        <header className="sticky top-0 z-10 border-b border-[var(--ring)] bg-[var(--surface)]">
-          <div className="mx-auto flex h-12 w-full max-w-[1440px] items-center gap-6 px-6">
-            <Link href="/" className="text-17 font-semibold tracking-[-0.01em] hover:opacity-90">
-              RenewCast
-            </Link>
-            <span
-              className="text-11 font-medium text-ink-muted"
-              title="Central Electricity Regulatory Commission despatch framework"
-            >
-              96-block despatch day · IST
-            </span>
+        <header className="sticky top-0 z-20 border-b border-[var(--ring)] bg-[var(--surface)]">
+          <div className="mx-auto flex h-14 w-full max-w-[1440px] items-center justify-between px-4 sm:px-6">
+            {/* LEFT: Brand & Navigation */}
+            <div className="flex items-center gap-6 sm:gap-8">
+              <Link
+                href="/"
+                aria-label="RenewCast home"
+                className="flex items-center select-none rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--series-1)] hover:opacity-90 transition-opacity"
+              >
+                <img
+                  src="/logo-dark.png"
+                  alt="RenewCast"
+                  width={112}
+                  height={28}
+                  className="rc-logo-dark h-7 w-auto object-contain"
+                  loading="eager"
+                  decoding="async"
+                />
+                <img
+                  src="/logo-light.png"
+                  alt="RenewCast"
+                  width={112}
+                  height={28}
+                  className="rc-logo-light h-7 w-auto object-contain"
+                  loading="eager"
+                  decoding="async"
+                />
+              </Link>
 
-            <nav className="flex items-center gap-4 text-12">
-              <Link href="/fleet" className="underline-offset-4 hover:underline">
-                Fleet
-              </Link>
-              <Link href="/accuracy" className="underline-offset-4 hover:underline">
-                Accuracy
-              </Link>
-              <Link href="/simulator" className="underline-offset-4 hover:underline">
-                Simulator
-              </Link>
-              <Link href="/ingest" className="underline-offset-4 hover:underline">
-                Ingest
-              </Link>
-            </nav>
+              <AppNav />
+            </div>
 
-            <div className="ml-auto flex items-center gap-4">
+            {/* RIGHT: Current Operational Status & Theme Control */}
+            <div className="flex items-center gap-3 sm:gap-4">
               <BlockClock />
               <ThemeToggle />
             </div>
@@ -105,14 +123,22 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         </header>
 
         <main className="mx-auto w-full max-w-[1440px] flex-1 px-6 py-8">
-          {children}
+          <PageTransition>{children}</PageTransition>
         </main>
 
         <footer className="border-t border-[var(--ring)] px-6 py-4">
-          <p className="mx-auto max-w-[1440px] text-11 text-ink-muted">
-            Forecasts are probabilistic. Commercial coefficients are indicative
-            and configurable.
-          </p>
+          <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-4 text-11 text-ink-muted">
+            <p>
+              Forecasts are probabilistic. Commercial coefficients are indicative
+              and configurable.
+            </p>
+            <Link
+              href="/accuracy"
+              className="text-ink-secondary hover:text-ink-primary hover:underline transition-colors"
+            >
+              Model performance
+            </Link>
+          </div>
         </footer>
 
         <OfflineBanner />

@@ -55,7 +55,7 @@ export default function ErrorBoundary({
               href="/"
               className="rounded-control border border-[var(--ring)] bg-surface px-3 py-1.5 text-12 font-medium text-ink-secondary hover:bg-[var(--page)] hover:text-ink-primary"
             >
-              Return to Fleet
+              Return to Command Centre
             </a>
           </div>
 
