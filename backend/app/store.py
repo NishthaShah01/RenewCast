@@ -384,10 +384,14 @@ class FileCache:
     def set(self, key: str, payload: dict[str, Any]) -> None:
         """Write atomically, so a crash mid-write can't leave a half file
         that the next reader then has to treat as corrupt."""
-        path = self._path(key)
-        tmp = path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(payload), encoding="utf-8")
-        tmp.replace(path)
+        try:
+            path = self._path(key)
+            tmp = path.with_name(f"{path.stem}_{time.time_ns()}.tmp")
+            tmp.write_text(json.dumps(payload), encoding="utf-8")
+            tmp.replace(path)
+        except OSError:
+            # A transient filesystem error or race during cache write should never crash the request
+            pass
 
     def age_minutes(self, key: str) -> float | None:
         """How stale a cached entry is. The UI's freshness badge shows this."""
