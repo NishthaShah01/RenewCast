@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { BlockSpine } from "@/components/BlockSpine";
-import { Panel, Stat, StatusDot, Td, Th, riskToStatus } from "@/components/ui";
+import { Panel, StatusDot, Td, Th, riskToStatus } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { blockStartLabel } from "@/lib/blocks";
 import {
@@ -40,7 +40,7 @@ export default async function FleetPage() {
   const fleet =
     fleetResult.status === "fulfilled" ? fleetResult.value : [];
 
-  // Error condition: both or sites call failed
+  // Error condition: sites call failed
   if (sitesResult.status === "rejected") {
     const err = sitesResult.reason;
     const msg =
@@ -48,8 +48,8 @@ export default async function FleetPage() {
     return (
       <div className="flex flex-col gap-6">
         <div>
-          <h1 className="text-24 font-semibold tracking-[-0.01em]">Fleet</h1>
-          <p className="mt-1 text-14 text-ink-secondary">
+          <h1 className="text-20 font-semibold tracking-[-0.01em] text-ink-primary">Fleet</h1>
+          <p className="mt-0.5 text-13 text-ink-secondary">
             Operational overview of connected renewable portfolio assets.
           </p>
         </div>
@@ -95,7 +95,7 @@ export default async function FleetPage() {
     return (
       <div className="flex flex-col gap-6">
         <div>
-          <h1 className="text-24 font-semibold tracking-[-0.01em]">Fleet</h1>
+          <h1 className="text-20 font-semibold tracking-[-0.01em] text-ink-primary">Fleet</h1>
         </div>
         <Panel title="Fleet portfolio">
           <div className="p-8 text-center">
@@ -183,6 +183,11 @@ export default async function FleetPage() {
     return r && (r.riskLevel === "serious" || r.riskLevel === "critical");
   }).length;
 
+  const watchCount = sites.filter((s) => {
+    const r = siteRisks.get(s.id);
+    return r && r.riskLevel === "watch";
+  }).length;
+
   // Sites needing attention ranked by severity descending
   const attentionSites = sites
     .map((s) => ({
@@ -194,78 +199,148 @@ export default async function FleetPage() {
     .sort((a, b) => (b.risk?.severity ?? 0) - (a.risk?.severity ?? 0));
 
   return (
-    <div className="flex flex-col gap-8">
-      {/* Header */}
-      <div>
-        <h1 className="text-24 font-semibold tracking-[-0.01em]">Fleet</h1>
-        <p className="mt-1 max-w-[72ch] text-14 text-ink-secondary">
-          Portfolio generation and operational status across {sites.length} connected renewable sites.
-        </p>
-      </div>
+    <div className="flex flex-col gap-6">
+      {/* ── 1. Compact Fleet Header ────────────────────────────────────────── */}
+      <header className="flex flex-wrap items-end justify-between gap-4 border-b border-[var(--gridline)] pb-4">
+        <div>
+          <h1 className="text-20 font-semibold tracking-[-0.01em] text-ink-primary">
+            Fleet
+          </h1>
+          <p className="mt-0.5 text-13 text-ink-secondary">
+            Portfolio generation and operational status across {sites.length} connected renewable sites.
+          </p>
+        </div>
+        <div className="text-12 font-medium tabular-nums text-ink-muted">
+          {sites.length} sites · {mw(totalCapacity)}
+        </div>
+      </header>
 
-      {/* 96-block spine */}
-      <BlockSpine />
+      {/* ── 2. Portfolio Status (Hero Operational Summary) ──────────────────── */}
+      <section className="rounded-panel border border-[var(--ring)] bg-surface">
+        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--gridline)] px-4 py-3">
+          <h2 className="text-14 font-semibold text-ink-primary">Portfolio status</h2>
+          {/* Subtle fleet health indicator */}
+          <div className="flex flex-wrap items-center gap-3 text-11 font-medium">
+            <span className="flex items-center gap-1.5 text-ink-secondary">
+              <span className="size-2 rounded-full bg-[var(--ink-muted)]" aria-hidden="true" />
+              {sites.length} sites active
+            </span>
+            {seriousOrCriticalCount > 0 ? (
+              <span className="flex items-center gap-1.5 font-semibold text-[var(--status-serious)]">
+                <span className="size-2 rounded-full bg-[var(--status-serious)]" aria-hidden="true" />
+                {seriousOrCriticalCount} serious/critical
+              </span>
+            ) : null}
+            {watchCount > 0 ? (
+              <span className="flex items-center gap-1.5 text-[var(--status-warning)]">
+                <span className="size-2 rounded-full bg-[var(--status-warning)]" aria-hidden="true" />
+                {watchCount} watch
+              </span>
+            ) : null}
+            {seriousOrCriticalCount === 0 && watchCount === 0 ? (
+              <span className="flex items-center gap-1.5 text-[var(--status-good)]">
+                <span className="size-2 rounded-full bg-[var(--status-good)]" aria-hidden="true" />
+                All on plan
+              </span>
+            ) : null}
+          </div>
+        </header>
 
-      {/* Portfolio Summary Section */}
-      <Panel
-        title="Portfolio summary"
-        meta={`${sites.length} sites (${solarSites.length} Solar · ${windSites.length} Wind)`}
-        footnote={
-          <>
-            Fleet generation interval reflects conservative aggregate bounds (
-            {mwh(totalP10)} to {mwh(totalP90)}). Plant schedules align with the
-            96-block Indian CERC despatch grid.
-          </>
-        }
-      >
-        <dl className="grid grid-cols-2 gap-x-8 gap-y-5 px-4 py-4 sm:grid-cols-3 lg:grid-cols-6">
-          <Stat
-            label="Installed capacity"
-            value={mw(totalCapacity)}
-            note={`${sites.length} total plants`}
-          />
-          <Stat
-            label="Expected energy"
-            value={mwh(totalP50)}
-            note="P50 central estimate"
-          />
-          <Stat
-            label="Solar generation"
-            value={mwh(solarP50)}
-            note={`${mw(solarCapacity)} (${((solarCapacity / totalCapacity) * 100).toFixed(0)}% cap)`}
-          />
-          <Stat
-            label="Wind generation"
-            value={mwh(windP50)}
-            note={`${mw(windCapacity)} (${((windCapacity / totalCapacity) * 100).toFixed(0)}% cap)`}
-          />
-          <Stat
-            label="Capacity factor"
-            value={percent(fleetCf)}
-            note="Fleet weighted average"
-          />
-          <Stat
-            label="Active risk events"
-            value={`${activeRiskSites.length} of ${sites.length}`}
-            status={
-              seriousOrCriticalCount > 0
-                ? "serious"
-                : activeRiskSites.length > 0
-                  ? "warning"
-                  : "good"
-            }
-            note={
-              seriousOrCriticalCount > 0
+        {/* Clean horizontal operational summary */}
+        <div className="grid grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-[var(--gridline)] sm:grid-cols-3 lg:grid-cols-6">
+          {/* 1. Expected generation */}
+          <div className="flex flex-col gap-1 p-4">
+            <span className="text-11 font-medium uppercase tracking-wider text-ink-muted">
+              Expected generation
+            </span>
+            <div className="text-20 font-semibold tabular-nums text-ink-primary">
+              {mwh(totalP50)}
+            </div>
+            <span className="text-11 text-ink-muted">
+              P50 · {mwh(totalP10)}–{mwh(totalP90)}
+            </span>
+          </div>
+
+          {/* 2. Installed capacity */}
+          <div className="flex flex-col gap-1 p-4">
+            <span className="text-11 font-medium uppercase tracking-wider text-ink-muted">
+              Installed capacity
+            </span>
+            <div className="text-20 font-semibold tabular-nums text-ink-primary">
+              {mw(totalCapacity)}
+            </div>
+            <span className="text-11 text-ink-muted">
+              {sites.length} generating assets
+            </span>
+          </div>
+
+          {/* 3. Active risk events (Hero focus) */}
+          <div className="flex flex-col gap-1 p-4 bg-[var(--page)]/25">
+            <span className="text-11 font-semibold uppercase tracking-wider text-ink-muted">
+              Active risk events
+            </span>
+            <div className="flex items-baseline gap-2">
+              <span className="text-20 font-semibold tabular-nums text-[var(--status-serious)]">
+                {activeRiskSites.length} / {sites.length}
+              </span>
+              <span className="text-12 font-medium text-ink-secondary">sites</span>
+            </div>
+            <span className="text-11 font-medium text-[var(--status-serious)]">
+              {seriousOrCriticalCount > 0
                 ? `${seriousOrCriticalCount} serious/critical`
                 : activeRiskSites.length > 0
                   ? "Watch status"
-                  : "All on plan"
-            }
-          />
-        </dl>
-      </Panel>
+                  : "All on schedule"}
+            </span>
+          </div>
 
-      {/* Technology Comparison */}
+          {/* 4. Solar */}
+          <div className="flex flex-col gap-1 p-4">
+            <span className="flex items-center gap-1.5 text-11 font-medium uppercase tracking-wider text-ink-muted">
+              <span className="size-2 rounded-full" style={{ backgroundColor: "#601D49" }} aria-hidden="true" />
+              Solar
+            </span>
+            <div className="text-20 font-semibold tabular-nums text-ink-primary">
+              {mwh(solarP50)}
+            </div>
+            <span className="text-11 text-ink-muted">
+              {solarSites.length} sites · {mw(solarCapacity)}
+            </span>
+          </div>
+
+          {/* 5. Wind */}
+          <div className="flex flex-col gap-1 p-4">
+            <span className="flex items-center gap-1.5 text-11 font-medium uppercase tracking-wider text-ink-muted">
+              <span className="size-2 rounded-full" style={{ backgroundColor: "#BD5579" }} aria-hidden="true" />
+              Wind
+            </span>
+            <div className="text-20 font-semibold tabular-nums text-ink-primary">
+              {mwh(windP50)}
+            </div>
+            <span className="text-11 text-ink-muted">
+              {windSites.length} sites · {mw(windCapacity)}
+            </span>
+          </div>
+
+          {/* 6. Capacity factor (Secondary) */}
+          <div className="flex flex-col gap-1 p-4">
+            <span className="text-11 font-medium uppercase tracking-wider text-ink-muted">
+              Capacity factor
+            </span>
+            <div className="text-20 font-semibold tabular-nums text-ink-primary">
+              {percent(fleetCf)}
+            </div>
+            <span className="text-11 text-ink-muted">
+              Fleet weighted avg
+            </span>
+          </div>
+        </div>
+      </section>
+
+      {/* ── 3. Primary Exception View: Sites Needing Attention ──────────────── */}
+      <SitesNeedingAttention items={attentionSites} />
+
+      {/* ── 4. Technology Mix ──────────────────────────────────────────────── */}
       <TechnologyComparison
         solarCapacity={solarCapacity}
         windCapacity={windCapacity}
@@ -277,16 +352,152 @@ export default async function FleetPage() {
         windSitesCount={windSites.length}
       />
 
-      {/* Sites Needing Attention (Ranked by Severity) */}
-      <SitesNeedingAttention items={attentionSites} />
-
-      {/* Main Fleet Table */}
+      {/* ── 5. Connected Assets Table ───────────────────────────────────────── */}
       <FleetTable sites={sites} fleet={fleet} siteRisks={siteRisks} />
+
+      {/* ── 6. Operations Timing (Secondary) ────────────────────────────────── */}
+      <Panel
+        title="Operations timing"
+        meta="96-block CERC despatch framework · IST"
+        footnote="Indian grid despatch operates on 15-minute time blocks. Gate closure enforces revision deadlines 6 blocks in advance of physical delivery."
+      >
+        <div className="px-4 py-4">
+          <BlockSpine />
+        </div>
+      </Panel>
     </div>
   );
 }
 
-/* ── Technology Distribution Component ─────────────────────────────────── */
+/* ── Sites Needing Attention (Hero Content) ────────────────────────────── */
+
+function SitesNeedingAttention({
+  items,
+}: {
+  items: Array<{
+    site: Site;
+    risk?: SiteRiskInfo;
+    energy?: EnergySummary;
+  }>;
+}) {
+  if (items.length === 0) {
+    return (
+      <section className="rounded-panel border border-[var(--ring)] bg-surface p-4">
+        <header className="flex items-center justify-between border-b border-[var(--gridline)] pb-3">
+          <h2 className="text-14 font-semibold text-ink-primary">Sites needing attention</h2>
+          <span className="text-11 text-ink-muted">0 sites at risk</span>
+        </header>
+        <p className="pt-3 text-13 text-ink-secondary">
+          All sites are operating within standard declared schedule parameters.
+          No high-severity operational deviations detected.
+        </p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="rounded-panel border border-[var(--ring)] bg-surface">
+      <header className="flex items-baseline justify-between gap-4 border-b border-[var(--gridline)] px-4 py-3">
+        <div>
+          <h2 className="text-14 font-semibold text-ink-primary">Sites needing attention</h2>
+          <p className="mt-0.5 text-11 text-ink-muted">
+            Triage order: ranked by severity (0–100) across active operational events.
+          </p>
+        </div>
+        <span className="text-11 font-medium text-ink-muted">
+          {items.length} of 5 flagged
+        </span>
+      </header>
+
+      <div className="divide-y divide-[var(--gridline)]">
+        {items.map(({ site, risk }) => {
+          if (!risk) return null;
+          const statusLevel = riskToStatus(risk.riskLevel);
+          return (
+            <div
+              key={site.id}
+              className="flex flex-col gap-3 px-4 py-3.5 transition-colors hover:bg-[var(--page)]/30 lg:flex-row lg:items-center lg:justify-between"
+            >
+              {/* Site identity & Event details */}
+              <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+                {/* Row 1: Site name + State + Risk badge */}
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <Link
+                    href={`/sites/${site.id}`}
+                    className="text-14 font-semibold text-ink-primary hover:underline"
+                  >
+                    {site.name}
+                  </Link>
+                  <span className="text-11 text-ink-muted">{site.state}</span>
+                  <span
+                    className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-11 font-medium capitalize"
+                    style={{
+                      backgroundColor: `color-mix(in srgb, var(--status-${statusLevel}) 12%, transparent)`,
+                      color: `var(--status-${statusLevel})`,
+                      border: `1px solid color-mix(in srgb, var(--status-${statusLevel}) 25%, transparent)`,
+                    }}
+                  >
+                    <StatusDot level={statusLevel} />
+                    {RISK_LABELS[risk.riskLevel] ?? risk.riskLevel} {risk.severity}
+                  </span>
+                </div>
+
+                {/* Row 2: Event timing, type & peak deviation */}
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-12 text-ink-secondary">
+                  {risk.topEventTitle && (
+                    <span className="font-medium text-ink-primary">
+                      {risk.topEventTitle}
+                    </span>
+                  )}
+                  {risk.peakDeviationMw !== undefined && (
+                    <>
+                      <span className="text-ink-muted" aria-hidden="true">·</span>
+                      <span>
+                        Peak deviation:{" "}
+                        <strong className="font-semibold tabular-nums text-ink-primary">
+                          {mw(risk.peakDeviationMw)}
+                        </strong>
+                      </span>
+                    </>
+                  )}
+                  {risk.driver && (
+                    <>
+                      <span className="text-ink-muted" aria-hidden="true">·</span>
+                      <span className="truncate max-w-[65ch] text-ink-secondary" title={risk.driver}>
+                        {risk.driver}
+                      </span>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Action column & single navigation CTA */}
+              <div className="flex items-center gap-4 shrink-0 pt-2 lg:pt-0 border-t border-[var(--gridline)] lg:border-t-0">
+                {risk.recommendedAction && (
+                  <div className="text-right hidden sm:block">
+                    <span className="text-11 text-ink-muted block">Recommended action</span>
+                    <span className="text-12 font-medium text-ink-primary">
+                      {risk.recommendedAction}
+                    </span>
+                  </div>
+                )}
+                <Link
+                  href={`/sites/${site.id}/decisions`}
+                  className="rounded border border-[var(--ring)] bg-surface px-3 py-1.5 text-12 font-medium text-ink-primary hover:bg-[var(--page)] hover:border-ink-primary transition-colors inline-flex items-center gap-1 cursor-pointer"
+                >
+                  <span>Review plan</span>
+                  <span aria-hidden="true">→</span>
+                </Link>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+/* ── Technology Mix (Compact 2-Column Comparison) ──────────────────────── */
 
 function TechnologyComparison({
   solarCapacity,
@@ -321,138 +532,104 @@ function TechnologyComparison({
 
   return (
     <Panel
-      title="Technology distribution"
-      meta="Solar vs Wind portfolio breakdown"
-      footnote="Solar capacity is concentrated in Rajasthan, Karnataka, and Gujarat; wind capacity spans Tamil Nadu and Rajasthan."
+      title="Technology mix"
+      meta="Solar vs Wind portfolio balance"
+      footnote="Solar capacity in Rajasthan, Karnataka, and Gujarat · Wind capacity in Tamil Nadu and Rajasthan."
     >
-      <div className="flex flex-col gap-5 px-4 py-4">
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 md:gap-8">
-          {/* Installed Capacity Comparison */}
-          <div className="flex flex-col gap-2.5">
-            <div className="text-12 font-medium text-ink-primary">
-              Installed capacity
-            </div>
-
-            {/* Solar Capacity Row */}
-            <div className="flex items-center gap-3 text-12">
-              <span className="w-12 shrink-0 font-medium text-ink-secondary">
-                Solar
-              </span>
-              <span className="w-12 shrink-0 text-right font-medium tabular-nums text-ink-primary">
-                {solarCapPct.toFixed(1)}%
-              </span>
-              <div className="h-2 flex-1 overflow-hidden rounded-sm bg-[var(--gridline)]">
-                <div
-                  className="h-full rounded-sm"
-                  style={{
-                    width: `${solarCapPct}%`,
-                    backgroundColor: SOLAR_COLOR,
-                  }}
-                />
+      <div className="flex flex-col gap-5 p-4">
+        {/* Compact 2-column comparison cards */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {/* Solar PV Card */}
+          <div className="flex items-center justify-between rounded border border-[var(--gridline)] bg-[var(--page)]/30 p-3">
+            <div className="flex items-center gap-2.5">
+              <span
+                className="size-3 rounded-full"
+                style={{ backgroundColor: SOLAR_COLOR }}
+                aria-hidden="true"
+              />
+              <div>
+                <div className="text-13 font-semibold text-ink-primary">Solar PV</div>
+                <div className="text-11 text-ink-muted">{solarSitesCount} sites</div>
               </div>
-              <span className="min-w-[65px] shrink-0 text-right tabular-nums text-ink-muted">
+            </div>
+            <div className="text-right">
+              <div className="text-13 font-semibold tabular-nums text-ink-primary">
                 {mw(solarCapacity)}
-              </span>
-            </div>
-
-            {/* Wind Capacity Row */}
-            <div className="flex items-center gap-3 text-12">
-              <span className="w-12 shrink-0 font-medium text-ink-secondary">
-                Wind
-              </span>
-              <span className="w-12 shrink-0 text-right font-medium tabular-nums text-ink-primary">
-                {windCapPct.toFixed(1)}%
-              </span>
-              <div className="h-2 flex-1 overflow-hidden rounded-sm bg-[var(--gridline)]">
-                <div
-                  className="h-full rounded-sm"
-                  style={{
-                    width: `${windCapPct}%`,
-                    backgroundColor: WIND_COLOR,
-                  }}
-                />
               </div>
-              <span className="min-w-[65px] shrink-0 text-right tabular-nums text-ink-muted">
+              <div className="text-11 tabular-nums text-ink-muted">
+                {mwh(solarP50)} ({solarGenPct.toFixed(1)}% gen)
+              </div>
+            </div>
+          </div>
+
+          {/* Wind Card */}
+          <div className="flex items-center justify-between rounded border border-[var(--gridline)] bg-[var(--page)]/30 p-3">
+            <div className="flex items-center gap-2.5">
+              <span
+                className="size-3 rounded-full"
+                style={{ backgroundColor: WIND_COLOR }}
+                aria-hidden="true"
+              />
+              <div>
+                <div className="text-13 font-semibold text-ink-primary">Wind</div>
+                <div className="text-11 text-ink-muted">{windSitesCount} sites</div>
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-13 font-semibold tabular-nums text-ink-primary">
                 {mw(windCapacity)}
-              </span>
-            </div>
-          </div>
-
-          {/* Expected Energy Comparison */}
-          <div className="flex flex-col gap-2.5">
-            <div className="text-12 font-medium text-ink-primary">
-              Expected energy (P50)
-            </div>
-
-            {/* Solar Energy Row */}
-            <div className="flex items-center gap-3 text-12">
-              <span className="w-12 shrink-0 font-medium text-ink-secondary">
-                Solar
-              </span>
-              <span className="w-12 shrink-0 text-right font-medium tabular-nums text-ink-primary">
-                {solarGenPct.toFixed(1)}%
-              </span>
-              <div className="h-2 flex-1 overflow-hidden rounded-sm bg-[var(--gridline)]">
-                <div
-                  className="h-full rounded-sm"
-                  style={{
-                    width: `${solarGenPct}%`,
-                    backgroundColor: SOLAR_COLOR,
-                  }}
-                />
               </div>
-              <span className="min-w-[65px] shrink-0 text-right tabular-nums text-ink-muted">
-                {mwh(solarP50)}
-              </span>
-            </div>
-
-            {/* Wind Energy Row */}
-            <div className="flex items-center gap-3 text-12">
-              <span className="w-12 shrink-0 font-medium text-ink-secondary">
-                Wind
-              </span>
-              <span className="w-12 shrink-0 text-right font-medium tabular-nums text-ink-primary">
-                {windGenPct.toFixed(1)}%
-              </span>
-              <div className="h-2 flex-1 overflow-hidden rounded-sm bg-[var(--gridline)]">
-                <div
-                  className="h-full rounded-sm"
-                  style={{
-                    width: `${windGenPct}%`,
-                    backgroundColor: WIND_COLOR,
-                  }}
-                />
+              <div className="text-11 tabular-nums text-ink-muted">
+                {mwh(windP50)} ({windGenPct.toFixed(1)}% gen)
               </div>
-              <span className="min-w-[65px] shrink-0 text-right tabular-nums text-ink-muted">
-                {mwh(windP50)}
-              </span>
             </div>
           </div>
         </div>
 
-        {/* Quiet Legend */}
-        <div className="flex flex-wrap items-center gap-6 border-t border-[var(--gridline)] pt-3 text-12">
-          <div className="flex items-center gap-2">
-            <span
-              className="size-2 rounded-full"
-              style={{ backgroundColor: SOLAR_COLOR }}
-              aria-hidden="true"
-            />
-            <span className="font-medium text-ink-primary">Solar PV</span>
-            <span className="text-11 text-ink-muted">
-              {solarSitesCount} sites · {mw(solarCapacity)} · {mwh(solarP50)}
-            </span>
+        {/* Two thin proportion bars */}
+        <div className="flex flex-col gap-3 border-t border-[var(--gridline)] pt-3">
+          {/* Installed Capacity Bar */}
+          <div className="flex flex-col gap-1.5">
+            <div className="flex justify-between text-11">
+              <span className="font-medium text-ink-secondary">Installed capacity</span>
+              <span className="tabular-nums text-ink-muted">
+                Solar {solarCapPct.toFixed(1)}% · Wind {windCapPct.toFixed(1)}%
+              </span>
+            </div>
+            <div className="flex h-2 w-full overflow-hidden rounded-sm bg-[var(--gridline)]">
+              <div
+                className="h-full rounded-l-sm"
+                style={{ width: `${solarCapPct}%`, backgroundColor: SOLAR_COLOR }}
+                title={`Solar: ${solarCapPct.toFixed(1)}%`}
+              />
+              <div
+                className="h-full rounded-r-sm"
+                style={{ width: `${windCapPct}%`, backgroundColor: WIND_COLOR }}
+                title={`Wind: ${windCapPct.toFixed(1)}%`}
+              />
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span
-              className="size-2 rounded-full"
-              style={{ backgroundColor: WIND_COLOR }}
-              aria-hidden="true"
-            />
-            <span className="font-medium text-ink-primary">Wind</span>
-            <span className="text-11 text-ink-muted">
-              {windSitesCount} sites · {mw(windCapacity)} · {mwh(windP50)}
-            </span>
+
+          {/* Expected Energy Bar */}
+          <div className="flex flex-col gap-1.5">
+            <div className="flex justify-between text-11">
+              <span className="font-medium text-ink-secondary">Expected energy (P50)</span>
+              <span className="tabular-nums text-ink-muted">
+                Solar {solarGenPct.toFixed(1)}% · Wind {windGenPct.toFixed(1)}%
+              </span>
+            </div>
+            <div className="flex h-2 w-full overflow-hidden rounded-sm bg-[var(--gridline)]">
+              <div
+                className="h-full rounded-l-sm"
+                style={{ width: `${solarGenPct}%`, backgroundColor: SOLAR_COLOR }}
+                title={`Solar: ${solarGenPct.toFixed(1)}%`}
+              />
+              <div
+                className="h-full rounded-r-sm"
+                style={{ width: `${windGenPct}%`, backgroundColor: WIND_COLOR }}
+                title={`Wind: ${windGenPct.toFixed(1)}%`}
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -460,110 +637,7 @@ function TechnologyComparison({
   );
 }
 
-/* ── Sites Needing Attention ───────────────────────────────────────────── */
-
-function SitesNeedingAttention({
-  items,
-}: {
-  items: Array<{
-    site: Site;
-    risk?: SiteRiskInfo;
-    energy?: EnergySummary;
-  }>;
-}) {
-  if (items.length === 0) {
-    return (
-      <Panel title="Sites needing attention" meta="0 sites at risk">
-        <p className="px-4 py-5 text-13 text-ink-secondary">
-          All sites are operating within standard declared schedule parameters.
-          No high-severity operational deviations detected.
-        </p>
-      </Panel>
-    );
-  }
-
-  return (
-    <Panel
-      title="Sites needing attention"
-      meta={`${items.length} of 5 flagged`}
-      footnote="Ranked by operational severity (0–100). Surfaces sites with active Watch, Serious, or Critical events."
-    >
-      <div className="divide-y divide-[var(--gridline)]">
-        {items.map(({ site, risk }) => {
-          if (!risk) return null;
-          const statusLevel = riskToStatus(risk.riskLevel);
-          return (
-            <div
-              key={site.id}
-              className="flex flex-col gap-3 p-4 transition-colors hover:bg-[var(--page)]/40 sm:flex-row sm:items-center sm:justify-between"
-            >
-              <div className="flex flex-col gap-1 sm:max-w-[70%]">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Link
-                    href={`/sites/${site.id}`}
-                    className="font-semibold text-ink-primary hover:underline"
-                  >
-                    {site.name}
-                  </Link>
-                  <span className="text-11 text-ink-muted">({site.state})</span>
-                  <span className="text-11 text-ink-muted">·</span>
-                  <span
-                    className="inline-flex items-center gap-1.5 text-12 font-medium capitalize"
-                    style={{ color: `var(--status-${statusLevel})` }}
-                  >
-                    <StatusDot level={statusLevel} />
-                    {RISK_LABELS[risk.riskLevel] ?? risk.riskLevel} (severity {risk.severity})
-                  </span>
-                </div>
-
-                {risk.driver && (
-                  <p className="text-13 text-ink-secondary">
-                    <strong className="font-medium text-ink-primary">Main event: </strong>
-                    {risk.topEventTitle ? `${risk.topEventTitle} — ` : ""}
-                    {risk.driver}
-                  </p>
-                )}
-
-                <div className="flex flex-wrap items-center gap-3 text-11 text-ink-muted">
-                  {risk.peakDeviationMw !== undefined && (
-                    <span>
-                      Peak deviation:{" "}
-                      <strong className="font-semibold tabular-nums text-ink-primary">
-                        {mw(risk.peakDeviationMw)}
-                      </strong>
-                    </span>
-                  )}
-                  {risk.recommendedAction && (
-                    <>
-                      <span>·</span>
-                      <span>
-                        Action:{" "}
-                        <strong className="font-medium text-ink-primary">
-                          {risk.recommendedAction}
-                        </strong>
-                      </span>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 self-start sm:self-center">
-                <Link
-                  href={`/sites/${site.id}/decisions`}
-                  className="rounded border border-[var(--ring)] bg-surface px-3 py-1.5 text-12 font-medium text-ink-primary hover:bg-[var(--page)]"
-                >
-                  Despatch Plan →
-                </Link>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </Panel>
-  );
-}
-
-/* ── Main Fleet Table ─────────────────────────────────────────────────── */
+/* ── Main Fleet Table (Connected Assets Registry) ──────────────────────── */
 
 function FleetTable({
   sites,
@@ -588,18 +662,18 @@ function FleetTable({
       footnote="Click any site name to inspect real-time forecasts, historical actuals, and priced despatch revisions."
     >
       <div className="overflow-x-auto">
-        <table className="w-full text-14">
+        <table className="w-full text-13">
           <thead>
             <tr className="border-b border-[var(--gridline)]">
               <Th>Site</Th>
               <Th>Technology</Th>
               <Th numeric>Capacity</Th>
               <Th numeric>Expected Energy</Th>
-              <Th width="160px">Relative</Th>
+              <Th width="140px">Relative</Th>
               <Th numeric>Peak Output</Th>
               <Th numeric>Capacity Factor</Th>
               <Th>Risk / Status</Th>
-              <Th>Recommended Action</Th>
+              <Th>Action</Th>
             </tr>
           </thead>
           <tbody>
@@ -687,13 +761,12 @@ function FleetTable({
                   </Td>
 
                   <Td>
-                    {risk?.recommendedAction ? (
-                      <span className="text-12 font-medium text-ink-secondary">
-                        {risk.recommendedAction}
-                      </span>
-                    ) : (
-                      <span className="text-12 text-ink-muted">On plan</span>
-                    )}
+                    <Link
+                      href={`/sites/${site.id}/decisions`}
+                      className="text-12 font-medium text-ink-secondary hover:text-ink-primary hover:underline whitespace-nowrap"
+                    >
+                      Review plan →
+                    </Link>
                   </Td>
                 </tr>
               );
