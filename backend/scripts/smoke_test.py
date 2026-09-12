@@ -346,6 +346,30 @@ def check_copilot(base: str, timeout: float, state: dict) -> str:
     return note
 
 
+def check_simulator(base: str, timeout: float, state: dict) -> str:
+    site_id = state["site_id"]
+    status, body = _get(f"{base}/api/simulate/defaults/{site_id}", timeout)
+    _require_status(status, 200, f"GET /api/simulate/defaults/{site_id}", body)
+    _require_keys(
+        body,
+        ("site_id", "site_name", "capacity_mw", "defaults"),
+        f"GET /api/simulate/defaults/{site_id}",
+    )
+    return f"defaults loaded for {body['site_name']} ({body['capacity_mw']} MW)"
+
+
+def check_ingest(base: str, timeout: float, state: dict) -> str:
+    site_id = state["site_id"]
+    status, body = _get(f"{base}/api/history/{site_id}", timeout)
+    _require_status(status, 200, f"GET /api/history/{site_id}", body)
+    _require_keys(
+        body,
+        ("site_id", "site_name", "capacity_mw", "technology", "actuals_count"),
+        f"GET /api/history/{site_id}",
+    )
+    return f"{body['actuals_count']} actuals recorded for {site_id}"
+
+
 # Required checks gate the exit code. Optional ones report and never fail the
 # run: copilot because the deterministic mode is legitimate, accuracy because
 # an untrained clone has nothing to serve.
@@ -354,6 +378,8 @@ CHECKS: tuple[tuple[str, Any, bool], ...] = (
     ("GET  /api/sites", check_sites, True),
     ("GET  /api/forecast/{id}", check_forecast, True),
     ("GET  /api/decisions/{id}", check_decisions, True),
+    ("GET  /api/simulate/defaults/{id}", check_simulator, True),
+    ("GET  /api/history/{id}", check_ingest, True),
     ("GET  /api/accuracy", check_accuracy, False),
     ("POST /api/copilot", check_copilot, False),
 )

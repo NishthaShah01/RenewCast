@@ -72,9 +72,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="flex min-h-full flex-col">
         <header className="sticky top-0 z-10 border-b border-[var(--ring)] bg-[var(--surface)]">
           <div className="mx-auto flex h-12 w-full max-w-[1440px] items-center gap-6 px-6">
-            <span className="text-17 font-semibold tracking-[-0.01em]">
+            <Link href="/" className="text-17 font-semibold tracking-[-0.01em] hover:opacity-90">
               RenewCast
-            </span>
+            </Link>
             <span
               className="text-11 font-medium text-ink-muted"
               title="Central Electricity Regulatory Commission despatch framework"
@@ -83,7 +83,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             </span>
 
             <nav className="flex items-center gap-4 text-12">
-              <Link href="/" className="underline-offset-4 hover:underline">
+              <Link href="/fleet" className="underline-offset-4 hover:underline">
                 Fleet
               </Link>
               <Link href="/accuracy" className="underline-offset-4 hover:underline">

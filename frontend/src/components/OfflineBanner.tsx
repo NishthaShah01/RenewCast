@@ -54,7 +54,7 @@ export function OfflineBanner() {
           className="inline-block size-2 shrink-0 rounded-pill"
           style={{ background: "var(--status-serious)" }}
         />
-        You&rsquo;re offline. RenewCast needs a connection to fetch forecasts.
+        You&rsquo;re offline. Live forecast data may be unavailable.
       </p>
     </div>
   );

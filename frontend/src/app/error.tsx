@@ -1,64 +1,67 @@
 "use client";
 
 /**
- * The error boundary.
+ * Global error boundary.
  *
- * A client component by requirement — the boundary has to run on the client to
- * catch a render that failed there. It covers every route below the root
- * layout, so the header, nav and footer stay on screen and only the content
- * region is replaced.
- *
- * ## What it does not do
- *
- * It does not print `error.message`. Server-side messages are redacted to a
- * digest in production, and the ones that are not redacted are stack-shaped
- * text no operator can act on. The API client already writes its failures in
- * the interface's voice and the pages render those inline; anything reaching
- * this boundary is by definition the case we could not name, so it says so and
- * offers the one useful action.
- *
- * `retry` re-runs the failed segment on the server. It replaced `reset` as the
- * recommended prop in 16.3 — `reset` still exists, but retry is the one that
- * re-attempts the render rather than only clearing the error state.
+ * Catches unhandled errors across any segment below the root layout.
+ * Explains that data or the page could not be loaded, preserves the operational
+ * visual language, and offers a Retry action without exposing raw stack traces.
  */
-export default function Error({
+export default function ErrorBoundary({
   error,
+  reset,
   retry,
 }: {
   error: Error & { digest?: string };
-  retry: () => void;
+  reset?: () => void;
+  retry?: () => void;
 }) {
+  const handleRetry = () => {
+    if (typeof reset === "function") {
+      reset();
+    } else if (typeof retry === "function") {
+      retry();
+    } else {
+      window.location.reload();
+    }
+  };
+
   return (
-    <section className="rounded-panel border border-[var(--ring)] bg-surface p-4">
+    <section className="rounded-panel border border-[var(--ring)] bg-surface p-6">
       <div className="flex items-start gap-3">
         <span
           aria-hidden
-          className="mt-1.5 inline-block size-2 shrink-0 rounded-pill"
+          className="mt-1 inline-block size-2.5 shrink-0 rounded-full"
           style={{ background: "var(--status-critical)" }}
         />
-        <div>
-          <h2 className="text-14 font-semibold">
-            Forecast data is unavailable right now.
+        <div className="flex-1">
+          <h2 className="text-16 font-semibold text-ink-primary">
+            Data or page could not be loaded.
           </h2>
           <p className="mt-1 max-w-[72ch] text-14 text-ink-secondary">
-            The service didn&rsquo;t return a usable response. Retrying will
-            request it again.
+            The operational service didn&rsquo;t return a usable response or the requested resource is unavailable.
+            Retrying will request it again.
           </p>
 
-          <button
-            type="button"
-            onClick={retry}
-            className="mt-3 rounded-control px-3 py-1.5 text-12 font-medium text-[var(--surface)]"
-            style={{ background: "var(--ink-primary)" }}
-          >
-            Retry
-          </button>
+          <div className="mt-4 flex items-center gap-3">
+            <button
+              type="button"
+              onClick={handleRetry}
+              className="rounded-control bg-[var(--ink-primary)] px-4 py-1.5 text-12 font-medium text-[var(--surface)] hover:opacity-90 active:opacity-100"
+            >
+              Retry
+            </button>
+            <a
+              href="/"
+              className="rounded-control border border-[var(--ring)] bg-surface px-3 py-1.5 text-12 font-medium text-ink-secondary hover:bg-[var(--page)] hover:text-ink-primary"
+            >
+              Return to Fleet
+            </a>
+          </div>
 
-          {/* The digest is the only handle support has on a redacted
-              production error. Shown quietly, never as the headline. */}
           {error.digest ? (
-            <p className="mt-3 text-11 text-ink-muted tabular-nums">
-              Reference {error.digest}
+            <p className="mt-4 text-11 text-ink-muted tabular-nums">
+              Reference code: {error.digest}
             </p>
           ) : null}
         </div>
