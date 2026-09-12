@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { Copilot } from "@/components/Copilot";
 import { DecisionSummary } from "@/components/DecisionSummary";
 import { DeviationStrip } from "@/components/DeviationStrip";
+import { RiskEventsPanel } from "@/components/RiskEventsPanel";
 import { Caveat, Panel, ServiceDown, Stat, StatusDot, Td, Th, riskToStatus } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import {
@@ -121,6 +122,9 @@ export default async function DecisionsPage(
         </div>
       </Panel>
 
+      {/* Operational Risk Events with 0-100 severity and deterministic driver attribution */}
+      <RiskEventsPanel events={decisions.events} />
+
       <Actions actions={decisions.actions} />
 
       <Copilot siteId={site.id} siteName={site.name} />
@@ -226,60 +230,73 @@ function BlockTable({ blocks, total }: { blocks: BlockDecision[]; total: number 
       meta={`${blocks.length} of ${total}`}
       footnote="Deviation is the declared schedule minus the P50 forecast. Positive means the declaration is above the central estimate — the side that attracts a DSM charge."
     >
-      <table className="w-full text-14">
-        <thead>
-          <tr className="border-b border-[var(--gridline)]">
-            <Th>Block</Th>
-            <Th>Risk</Th>
-            <Th numeric>Declared</Th>
-            <Th numeric>P50</Th>
-            <Th numeric>Deviation</Th>
-            <Th numeric>Shortfall</Th>
-            <Th numeric>Curtailment</Th>
-            <Th numeric>Headroom</Th>
-          </tr>
-        </thead>
-        <tbody>
-          {blocks.map((b) => (
-            <tr
-              key={b.block}
-              className="border-b border-[var(--gridline)] last:border-0"
-              style={b.locked ? { opacity: 0.55 } : undefined}
-            >
-              <Td>
-                <span className="tabular-nums">{b.label}</span>
-                <span className="ml-2 text-11 text-ink-muted tabular-nums">{b.block}</span>
-              </Td>
-              <Td>
-                <span className="flex items-center gap-2">
-                  <StatusDot level={riskToStatus(b.risk)} />
-                  {RISK_LABELS[b.risk] ?? b.risk}
-                </span>
-              </Td>
-              <Td numeric>{mw(b.schedule_mw)}</Td>
-              <Td numeric muted>{mw(b.p50)}</Td>
-              <Td numeric>
-                <span
-                  style={{
-                    color: b.deviation_mw > 0 ? "var(--delta-neg)" : "var(--ink-secondary)",
-                  }}
-                >
-                  {signedMw(b.deviation_mw)}
-                </span>
-              </Td>
-              <Td numeric muted>{b.deficit_mw > 0 ? mw(b.deficit_mw) : "—"}</Td>
-              <Td numeric>
-                {b.curtailment_mw > 0 ? (
-                  <span style={{ color: "var(--delta-neg)" }}>{mw(b.curtailment_mw)}</span>
-                ) : (
-                  <span className="text-ink-muted">—</span>
-                )}
-              </Td>
-              <Td numeric muted>{signedMw(b.headroom_mw)}</Td>
+      <div className="overflow-x-auto">
+        <table className="w-full text-14">
+          <thead>
+            <tr className="border-b border-[var(--gridline)]">
+              <Th>Block</Th>
+              <Th>Risk</Th>
+              <Th numeric>Severity</Th>
+              <Th numeric>Declared</Th>
+              <Th numeric>P50</Th>
+              <Th numeric>Deviation</Th>
+              <Th numeric>Shortfall</Th>
+              <Th numeric>Curtailment</Th>
+              <Th>Physical Driver</Th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {blocks.map((b) => (
+              <tr
+                key={b.block}
+                className="border-b border-[var(--gridline)] last:border-0"
+                style={b.locked ? { opacity: 0.55 } : undefined}
+              >
+                <Td>
+                  <span className="tabular-nums">{b.label}</span>
+                  <span className="ml-2 text-11 text-ink-muted tabular-nums">{b.block}</span>
+                </Td>
+                <Td>
+                  <span className="flex items-center gap-2">
+                    <StatusDot level={riskToStatus(b.risk)} />
+                    <span className="capitalize">{RISK_LABELS[b.risk] ?? b.risk}</span>
+                  </span>
+                </Td>
+                <Td numeric>
+                  <span className="font-semibold tabular-nums text-ink-primary">
+                    {b.severity ?? 0}
+                  </span>
+                  <span className="text-11 text-ink-muted">/100</span>
+                </Td>
+                <Td numeric>{mw(b.schedule_mw)}</Td>
+                <Td numeric muted>{mw(b.p50)}</Td>
+                <Td numeric>
+                  <span
+                    style={{
+                      color: b.deviation_mw > 0 ? "var(--delta-neg)" : "var(--ink-secondary)",
+                    }}
+                  >
+                    {signedMw(b.deviation_mw)}
+                  </span>
+                </Td>
+                <Td numeric muted>{b.deficit_mw > 0 ? mw(b.deficit_mw) : "—"}</Td>
+                <Td numeric>
+                  {b.curtailment_mw > 0 ? (
+                    <span style={{ color: "var(--delta-neg)" }}>{mw(b.curtailment_mw)}</span>
+                  ) : (
+                    <span className="text-ink-muted">—</span>
+                  )}
+                </Td>
+                <Td>
+                  <span className="text-12 text-ink-secondary" title={b.driver ?? undefined}>
+                    {b.driver ?? "—"}
+                  </span>
+                </Td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </Panel>
   );
 }

@@ -98,6 +98,15 @@ class ForecastBlock(BaseModel):
     computed client-side because it comes from the same solar-position code
     that produced the forecast."""
 
+    temp_c: float | None = None
+    cloud_pct: float | None = None
+    wind_ms: float | None = None
+    wind_100_ms: float | None = None
+    ghi: float | None = None
+    clear_sky_index: float | None = None
+    solar_elevation: float | None = None
+
+
 
 class ForecastResponse(BaseModel):
     site: Site
@@ -220,6 +229,11 @@ class BlockDecision(BaseModel):
     which is a different problem from energy nobody asked for."""
 
     risk: RiskLevel
+    severity: int = Field(default=0, ge=0, le=100)
+    """0–100 operational severity score."""
+    driver: str | None = None
+    """Human-readable physical driver explanation."""
+
     headroom_mw: float
     """Evacuation limit minus P50. Negative means congestion at the median."""
 
@@ -254,6 +268,27 @@ class RecommendedAction(BaseModel):
     often 'this was visible four blocks ago and nothing could be done'."""
 
 
+class RiskEvent(BaseModel):
+    """Grouped risk event with operational severity and data-grounded driver attribution."""
+
+    event_type: Literal["deficit", "surplus", "curtailment"]
+    block_start: int = Field(ge=1, le=96)
+    block_end: int = Field(ge=1, le=96)
+    label: str
+    """Pre-rendered span, e.g. '18:30–21:00'."""
+
+    peak_deviation_mw: float
+    energy_mwh: float
+    severity: int = Field(ge=0, le=100)
+    risk_level: RiskLevel
+    driver: str
+    """Clear, plain-language explanation of why the event occurred."""
+    driver_detail: str | None = None
+    """Supporting telemetry clue (solar elevation, cloud %, wind threshold)."""
+    recommended_action: str | None = None
+    actionable: bool = True
+
+
 class DecisionResponse(BaseModel):
     site: Site
     despatch_date: str
@@ -268,6 +303,8 @@ class DecisionResponse(BaseModel):
 
     blocks: list[BlockDecision]
     actions: list[RecommendedAction]
+    events: list[RiskEvent] = Field(default_factory=list)
+    """Detected operational risk events ranked by severity."""
 
     deficit_energy_mwh: float
     surplus_energy_mwh: float
@@ -453,6 +490,74 @@ class SimulatorDefaultsResponse(BaseModel):
     defaults: dict[str, Any]
 
 
+# ═════════════════════════════════════════════════════════════════════════
+# INGEST & HISTORY
+# ═════════════════════════════════════════════════════════════════════════
+
+
+class SkippedRowDetail(BaseModel):
+    row_index: int
+    raw_timestamp: str
+    raw_generation: str
+    reason: str
+
+
+class IngestPreviewRow(BaseModel):
+    row_index: int
+    raw_timestamp: str
+    raw_generation: str
+    parsed_ts: str | None = None
+    block: int | None = None
+    generation_mw: float | None = None
+    valid: bool
+    errors: list[str] = Field(default_factory=list)
+
+
+class IngestValidateResponse(BaseModel):
+    site_id: str
+    site_name: str
+    capacity_mw: float
+    technology: Technology
+    headers: list[str]
+    detected_mapping: dict[str, str | None]
+    preview_rows: list[IngestPreviewRow]
+    total_rows: int
+    valid_rows_count: int
+    invalid_rows_count: int
+    resolution: str
+    date_range_start: str | None = None
+    date_range_end: str | None = None
+    is_chronological: bool = True
+    duplicate_count: int = 0
+    summary_message: str
+
+
+class IngestResponse(BaseModel):
+    site_id: str
+    site_name: str
+    capacity_mw: float
+    technology: Technology
+    imported_rows: int
+    skipped_rows: int
+    resolution: str
+    date_range_start: str | None = None
+    date_range_end: str | None = None
+    message: str
+    skipped_rows_data: list[SkippedRowDetail] = Field(default_factory=list)
+
+
+class HistoryResponse(BaseModel):
+    site_id: str
+    site_name: str
+    capacity_mw: float
+    technology: Technology
+    actuals_count: int
+    date_range_start: str | None = None
+    date_range_end: str | None = None
+    scored_blocks_count: int = 0
+    recent_actuals: list[dict[str, Any]] = Field(default_factory=list)
+
+
 __all__ = [
     "AccuracyResponse",
     "ActionType",
@@ -467,7 +572,12 @@ __all__ = [
     "ForecastBlock",
     "ForecastResponse",
     "HealthResponse",
+    "HistoryResponse",
+    "IngestPreviewRow",
+    "IngestResponse",
+    "IngestValidateResponse",
     "RecommendedAction",
+    "RiskEvent",
     "RiskLevel",
     "SimulationDeltas",
     "SimulationMetrics",
@@ -477,6 +587,8 @@ __all__ = [
     "SimulatorTimelineBlock",
     "Site",
     "SiteListResponse",
+    "SkippedRowDetail",
     "Technology",
     "TechnologyAccuracy",
 ]
+

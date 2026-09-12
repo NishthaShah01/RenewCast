@@ -15,6 +15,9 @@ import type {
   EnergySummary,
   ForecastResponse,
   HealthResponse,
+  HistoryResponse,
+  IngestResponse,
+  IngestValidateResponse,
   Site,
   SiteListResponse,
   SimulatorDefaultsResponse,
@@ -45,20 +48,23 @@ interface RequestOptions {
   cache?: RequestCache;
   signal?: AbortSignal;
   method?: string;
-  body?: string;
+  body?: string | FormData;
 }
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   let response: Response;
+  const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
   try {
     response = await fetch(`${API_BASE}${path}`, {
       cache: options.cache ?? "no-store",
       signal: options.signal,
       method: options.method,
       body: options.body,
-      headers: options.body
-        ? { Accept: "application/json", "Content-Type": "application/json" }
-        : { Accept: "application/json" },
+      headers: isFormData
+        ? { Accept: "application/json" }
+        : options.body
+          ? { Accept: "application/json", "Content-Type": "application/json" }
+          : { Accept: "application/json" },
     });
   } catch {
     // Network-level failure: the server is down, or CORS rejected us. Name
@@ -146,4 +152,21 @@ export const api = {
       `/api/simulate/defaults/${encodeURIComponent(siteId)}`,
       options,
     ),
+
+  validateCsv: (formData: FormData, options?: RequestOptions) =>
+    request<IngestValidateResponse>("/api/ingest/validate", {
+      ...options,
+      method: "POST",
+      body: formData,
+    }),
+
+  ingestCsv: (formData: FormData, options?: RequestOptions) =>
+    request<IngestResponse>("/api/ingest/csv", {
+      ...options,
+      method: "POST",
+      body: formData,
+    }),
+
+  history: (siteId: string, options?: RequestOptions) =>
+    request<HistoryResponse>(`/api/history/${encodeURIComponent(siteId)}`, options),
 };

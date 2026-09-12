@@ -274,6 +274,34 @@ def actuals_count(site_id: str) -> int:
     return int(row["n"])
 
 
+def actuals_summary(site_id: str) -> dict[str, Any]:
+    with db() as conn:
+        count_row = conn.execute(
+            "SELECT COUNT(*) AS n, MIN(ts) AS min_ts, MAX(ts) AS max_ts FROM actuals WHERE site_id = ?",
+            (site_id,),
+        ).fetchone()
+        recent = conn.execute(
+            "SELECT ts, block, actual_mw, source FROM actuals WHERE site_id = ? ORDER BY ts DESC LIMIT 96",
+            (site_id,),
+        ).fetchall()
+        scored_count = conn.execute(
+            """SELECT COUNT(*) AS n
+               FROM forecast_blocks fb
+               JOIN forecast_runs fr ON fr.id = fb.run_id
+               JOIN actuals a ON a.site_id = fr.site_id AND a.ts = fb.ts
+               WHERE fr.site_id = ?""",
+            (site_id,),
+        ).fetchone()
+
+    return {
+        "count": int(count_row["n"]) if count_row else 0,
+        "date_range_start": count_row["min_ts"] if count_row and count_row["min_ts"] else None,
+        "date_range_end": count_row["max_ts"] if count_row and count_row["max_ts"] else None,
+        "scored_blocks_count": int(scored_count["n"]) if scored_count else 0,
+        "recent": [dict(r) for r in recent],
+    }
+
+
 # ═════════════════════════════════════════════════════════════════════════
 # SITE OVERRIDES
 # ═════════════════════════════════════════════════════════════════════════

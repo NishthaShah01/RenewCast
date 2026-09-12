@@ -22,7 +22,11 @@ from app.schemas import ForecastBlock, ForecastResponse
 from app.services.decisions import (
     BLOCK_HOURS,
     DECLARATION_HAIRCUT,
+    attribute_driver,
     build_decisions,
+    compute_severity,
+    detect_events,
+    severity_to_risk_level,
     synthesise_schedule,
 )
 
@@ -324,3 +328,126 @@ def test_headline_is_present_and_specific() -> None:
         d = build_decisions(_forecast(site_id))
         assert d.headline
         assert not d.headline.endswith("..")
+
+
+# ═════════════════════════════════════════════════════════════════════════
+# PHASE 5 — SEVERITY SCORE & DRIVER ATTRIBUTION TESTS
+# ═════════════════════════════════════════════════════════════════════════
+
+
+def test_severity_boundaries_and_monotonicity() -> None:
+    """Severity must be strictly 0–100, monotonic in magnitude and duration."""
+    cap = 2000.0
+
+    # Minimum: 0 for 0 deviation
+    sev_zero = compute_severity(cap, 0.0, 0.0, duration_hours=0.25, tod_blocks=48)
+    assert sev_zero == 0
+
+    # Monotonicity with magnitude
+    s_small = compute_severity(cap, 50.0, 0.0, duration_hours=1.0, tod_blocks=48)
+    s_med = compute_severity(cap, 200.0, 0.0, duration_hours=1.0, tod_blocks=48)
+    s_large = compute_severity(cap, 450.0, 0.0, duration_hours=1.0, tod_blocks=48)
+    assert 0 <= s_small < s_med < s_large <= 100
+
+    # Monotonicity with duration
+    s_1h = compute_severity(cap, 300.0, 0.0, duration_hours=1.0, tod_blocks=48)
+    s_4h = compute_severity(cap, 300.0, 0.0, duration_hours=4.0, tod_blocks=48)
+    assert s_1h < s_4h
+
+    # Time-of-day weighting: evening peak (18:00–23:00, e.g. block 80) is more severe than midday (block 48)
+    s_midday = compute_severity(cap, 200.0, 0.0, duration_hours=1.0, tod_blocks=48)
+    s_evening = compute_severity(cap, 200.0, 0.0, duration_hours=1.0, tod_blocks=80)
+    assert s_evening > s_midday
+
+    # Maximum bound capped at 100
+    s_extreme = compute_severity(cap, 10000.0, 5000.0, duration_hours=10.0, tod_blocks=80, width_mw=5000.0)
+    assert s_extreme == 100
+
+
+def test_severity_to_risk_level_mapping() -> None:
+    """Must map strictly into the 4 vocabulary statuses: Good, Watch, Serious, Critical."""
+    assert severity_to_risk_level(0) == "good"
+    assert severity_to_risk_level(24) == "good"
+    assert severity_to_risk_level(25) == "watch"
+    assert severity_to_risk_level(49) == "watch"
+    assert severity_to_risk_level(50) == "serious"
+    assert severity_to_risk_level(74) == "serious"
+    assert severity_to_risk_level(75) == "critical"
+    assert severity_to_risk_level(100) == "critical"
+
+
+def test_driver_attribution_solar_deficit_evening() -> None:
+    """Evening deficit on solar site must identify the post-sunset solar ramp."""
+    site = get_site("bhadla")
+    f = _forecast("bhadla")
+    # Simulate evening blocks 75..84
+    sub_f = [b for b in f.blocks if 75 <= b.block <= 84]
+    for b in sub_f:
+        b.solar_elevation = 2.0
+    sub_d = [
+        build_decisions(f).blocks[b.block - 1] for b in sub_f
+    ]
+    driver, detail = attribute_driver(site, "deficit", sub_f, sub_d, peak_dev=340.0, peak_curt=0.0)
+    assert "Post-sunset solar ramp" in driver
+    assert "elevation" in detail.lower()
+
+
+def test_driver_attribution_solar_cloud_cover() -> None:
+    """Dense/rising cloud cover must be identified when cloud_pct is high."""
+    site = get_site("bhadla")
+    f = _forecast("bhadla")
+    sub_f = [b for b in f.blocks if 45 <= b.block <= 52]
+    for b in sub_f:
+        b.cloud_pct = 78.0
+        b.clear_sky_index = 0.35
+        b.solar_elevation = 65.0
+    sub_d = [build_decisions(f).blocks[b.block - 1] for b in sub_f]
+    driver, detail = attribute_driver(site, "deficit", sub_f, sub_d, peak_dev=250.0, peak_curt=0.0)
+    assert "cloud" in driver.lower()
+    assert "78%" in driver or "78%" in detail or "Clearsky" in detail
+
+
+def test_driver_attribution_wind_cut_in() -> None:
+    """Wind speed below 3.0 m/s must trigger cut-in shutdown attribution."""
+    site = get_site("muppandal")
+    f = _forecast("muppandal", shape="flat_low")
+    sub_f = [b for b in f.blocks if 20 <= b.block <= 28]
+    for b in sub_f:
+        b.wind_100_ms = 2.1
+        b.wind_ms = 1.8
+    sub_d = [build_decisions(f).blocks[b.block - 1] for b in sub_f]
+    driver, detail = attribute_driver(site, "deficit", sub_f, sub_d, peak_dev=180.0, peak_curt=0.0)
+    assert "below cut-in 3.0 m/s" in driver
+    assert "2.1" in driver
+
+
+def test_driver_attribution_curtailment() -> None:
+    """Curtailment must attribute to evacuation limit."""
+    site = get_site("charanka")
+    f = _forecast("charanka", shape="flat_high")
+    sub_f = [b for b in f.blocks if 40 <= b.block <= 50]
+    sub_d = [build_decisions(f).blocks[b.block - 1] for b in sub_f]
+    driver, detail = attribute_driver(site, "curtailment", sub_f, sub_d, peak_dev=120.0, peak_curt=120.0)
+    assert "evacuation limit" in driver
+    assert f"{site.evacuation_limit_mw:.0f}" in driver or f"{site.evacuation_limit_mw:,.0f}" in driver
+
+
+def test_events_output_in_decisions_response() -> None:
+    """Every detected risk event in DecisionResponse.events must contain severity, driver, and valid fields."""
+    d = build_decisions(_forecast("charanka", shape="flat_high"))
+    assert len(d.events) > 0
+
+    for ev in d.events:
+        assert 0 <= ev.severity <= 100
+        assert ev.risk_level in ("good", "watch", "serious", "critical")
+        assert ev.driver
+        assert ev.driver_detail
+        assert ev.block_start <= ev.block_end
+        assert ev.peak_deviation_mw >= 0
+        assert ev.energy_mwh >= 0
+
+    # Also check that blocks have severity and drivers populated
+    for b in d.blocks:
+        assert 0 <= b.severity <= 100
+        assert b.driver is not None
+

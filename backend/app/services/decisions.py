@@ -79,6 +79,7 @@ from app.schemas import (
     ForecastBlock,
     ForecastResponse,
     RecommendedAction,
+    RiskEvent,
     RiskLevel,
 )
 
@@ -258,26 +259,370 @@ def synthesise_schedule(
 
 
 # ═════════════════════════════════════════════════════════════════════════
-# RISK BANDING
+# RISK SEVERITY & DRIVER ATTRIBUTION (PHASE 5)
 # ═════════════════════════════════════════════════════════════════════════
 
 
-def _risk_level(deviation_mw: float, curtailment_mw: float, capacity_mw: float) -> RiskLevel:
-    """Band one block.
+def _tod_criticality(block: int) -> float:
+    """Criticality factor based on Indian grid demand pattern.
 
-    Curtailment is weighted at 1.5× a plain deviation because it is worse than
-    a forecast miss: a deviation can be covered, but curtailed energy is gone.
-    The plant generated it, was paid nothing for it, and the carbon saving it
-    represented did not happen.
+    Blocks 1..96 (15 min each):
+      18:00–23:00 (Blocks 73..92): Evening peak demand (1.0)
+      06:00–09:00 (Blocks 25..36): Morning ramp (0.6)
+      10:00–17:00 (Blocks 41..68): Daytime solar peak (0.4)
+      23:00–06:00 (Blocks 93..96, 1..24): Night / off-peak (0.2)
+      All other blocks: 0.3
     """
-    magnitude = (abs(deviation_mw) + 1.5 * curtailment_mw) / max(capacity_mw, 1.0)
-    if magnitude >= RISK_CRITICAL:
+    if 73 <= block <= 92:
+        return 1.0
+    if 25 <= block <= 36:
+        return 0.6
+    if 41 <= block <= 68:
+        return 0.4
+    if block > 92 or block < 25:
+        return 0.2
+    return 0.3
+
+
+def compute_severity(
+    capacity_mw: float,
+    peak_deviation_mw: float,
+    peak_curtailment_mw: float = 0.0,
+    duration_hours: float = BLOCK_HOURS,
+    tod_blocks: int | list[int] = 48,
+    width_mw: float = 0.0,
+) -> int:
+    """Calculate 0–100 operational severity score.
+
+    Formula from specification (§7.1):
+      severity = 100 * [w1 * mag_ratio + w2 * dur_ratio + w3 * tod_ratio + w4 * width_ratio]
+      where w1=0.45, w2=0.25, w3=0.15, w4=0.15
+
+    - Short small deviations remain low severity (< 25, Good).
+    - Longer and/or larger deviations scale up to Serious and Critical (75–100).
+    """
+    cap = max(float(capacity_mw), 1.0)
+    eff_mw = abs(float(peak_deviation_mw)) + 1.5 * float(peak_curtailment_mw)
+
+    # Negligible deviation (< 1% of capacity) carries no operational severity
+    if eff_mw < 0.01 * cap:
+        return 0
+
+    mag_ratio = min(eff_mw / (0.20 * cap), 1.0)
+    dur_ratio = min(max(float(duration_hours), 0.0) / 6.0, 1.0)
+
+    if isinstance(tod_blocks, list) and tod_blocks:
+        tod_ratio = max((_tod_criticality(b) for b in tod_blocks), default=0.4)
+    elif isinstance(tod_blocks, int):
+        tod_ratio = _tod_criticality(tod_blocks)
+    else:
+        tod_ratio = 0.4
+
+    width_ratio = min(max(float(width_mw), 0.0) / (0.30 * cap), 1.0)
+
+    raw = 100.0 * (0.45 * mag_ratio + 0.25 * dur_ratio + 0.15 * tod_ratio + 0.15 * width_ratio)
+    return int(round(float(np.clip(raw, 0.0, 100.0))))
+
+
+def severity_to_risk_level(severity: int) -> RiskLevel:
+    """Map 0–100 severity score to operational risk levels:
+      Good: <25
+      Watch: 25–49
+      Serious: 50–74
+      Critical: 75–100
+    """
+    if severity >= 75:
         return "critical"
-    if magnitude >= RISK_SERIOUS:
+    if severity >= 50:
         return "serious"
-    if magnitude >= RISK_WATCH:
+    if severity >= 25:
         return "watch"
     return "good"
+
+
+def _risk_level(deviation_mw: float, curtailment_mw: float, capacity_mw: float) -> RiskLevel:
+    """Legacy helper maintained for test and internal compatibility."""
+    sev = compute_severity(
+        capacity_mw=capacity_mw,
+        peak_deviation_mw=deviation_mw,
+        peak_curtailment_mw=curtailment_mw,
+        duration_hours=BLOCK_HOURS,
+        tod_blocks=48,
+        width_mw=0.0,
+    )
+    return severity_to_risk_level(sev)
+
+
+def attribute_driver(
+    site: Site,
+    event_type: str,
+    blocks_slice: list[ForecastBlock],
+    decision_slice: list[BlockDecision],
+    peak_dev: float,
+    peak_curt: float,
+) -> tuple[str, str]:
+    """Derive deterministic, data-supported physical driver and telemetry detail.
+
+    Returns (driver_sentence, driver_detail).
+    """
+    is_solar = site.technology == "solar"
+    is_wind = site.technology == "wind"
+
+    temps = [b.temp_c for b in blocks_slice if b.temp_c is not None]
+    clouds = [b.cloud_pct for b in blocks_slice if b.cloud_pct is not None]
+    winds = [b.wind_ms for b in blocks_slice if b.wind_ms is not None]
+    winds_100 = [b.wind_100_ms for b in blocks_slice if b.wind_100_ms is not None]
+    ghis = [b.ghi for b in blocks_slice if b.ghi is not None]
+    csis = [b.clear_sky_index for b in blocks_slice if b.clear_sky_index is not None]
+    elevs = [b.solar_elevation for b in blocks_slice if b.solar_elevation is not None]
+
+    max_temp = float(np.max(temps)) if temps else None
+    avg_cloud = float(np.mean(clouds)) if clouds else None
+    min_cloud = float(np.min(clouds)) if clouds else None
+    max_cloud = float(np.max(clouds)) if clouds else None
+    avg_wind = float(np.mean(winds)) if winds else None
+    avg_w100 = float(np.mean(winds_100)) if winds_100 else None
+    min_w100 = float(np.min(winds_100)) if winds_100 else (avg_wind if avg_wind is not None else None)
+    max_w100 = float(np.max(winds_100)) if winds_100 else (avg_wind if avg_wind is not None else None)
+    avg_ghi = float(np.mean(ghis)) if ghis else None
+    avg_csi = float(np.mean(csis)) if csis else None
+    min_elev = float(np.min(elevs)) if elevs else None
+    max_elev = float(np.max(elevs)) if elevs else None
+
+    b_start = min((b.block for b in blocks_slice), default=1)
+    b_end = max((b.block for b in blocks_slice), default=96)
+    peak_sched = max((b.schedule_mw for b in decision_slice), default=0.0)
+    min_p10 = min((b.p10 for b in decision_slice), default=0.0)
+
+    # 1. Curtailment
+    if event_type == "curtailment" or peak_curt > 0.02 * site.capacity_mw:
+        max_p90 = max((b.p90 for b in decision_slice), default=site.evacuation_limit_mw)
+        driver = f"Expected output exceeds the {site.evacuation_limit_mw:,.0f} MW evacuation limit"
+        detail = (
+            f"Peak P90 generation reaches {max_p90:,.0f} MW against "
+            f"{site.evacuation_limit_mw:,.0f} MW transmission limit."
+        )
+        return driver, detail
+
+    # 2. Deficit
+    if event_type == "deficit":
+        if is_solar:
+            # Evening solar ramp
+            if b_end >= 68 and (min_elev is None or min_elev <= 15.0):
+                driver = (
+                    "Post-sunset solar ramp reduces available generation while the "
+                    "committed schedule remains elevated."
+                )
+                elev_str = f"{min_elev:.1f}°" if min_elev is not None else "< 10°"
+                detail = f"Solar elevation drops to {elev_str}; PV generation rapidly drops below declaration."
+                return driver, detail
+
+            # Morning ramp lag
+            if b_start <= 32 and (max_elev is None or max_elev <= 25.0):
+                driver = "Morning solar ramp lag: declaration opens before solar irradiance pickup"
+                ghi_str = f"{avg_ghi:.0f} W/m²" if avg_ghi is not None else "low"
+                detail = f"GHI is {ghi_str} with solar elevation still climbing; actual pickup lags declaration schedule."
+                return driver, detail
+
+            # Cloud cover rising or dense cloud
+            if avg_cloud is not None and (avg_cloud >= 50.0 or (avg_csi is not None and avg_csi < 0.50)):
+                if max_cloud is not None and min_cloud is not None and (max_cloud - min_cloud) >= 20.0:
+                    driver = "Cloud cover rises sharply through the event window"
+                else:
+                    driver = f"Dense cloud cover ({avg_cloud:.0f}%) suppressing solar irradiance"
+                ghi_str = f", GHI: {avg_ghi:.0f} W/m²" if avg_ghi is not None else ""
+                csi_str = f", Clearsky Index: {avg_csi:.2f}" if avg_csi is not None else ""
+                detail = f"Cloud cover: {avg_cloud:.0f}%{csi_str}{ghi_str}; diffuse fraction significantly elevated."
+                return driver, detail
+
+            # Thermal derate
+            if max_temp is not None and max_temp >= 40.0:
+                driver = f"High ambient temperature ({max_temp:.1f}°C) causing thermal derate on PV modules"
+                detail = f"Ambient temp reached {max_temp:.1f}°C; cell efficiency losses degrade peak generation below schedule."
+                return driver, detail
+
+            # Safe factual fallback
+            driver = "Forecast generation falls below the P10 floor"
+            detail = f"P10 floor drops to {min_p10:.0f} MW against {peak_sched:.0f} MW declared schedule."
+            return driver, detail
+
+        if is_wind:
+            # Cut-in shutdown
+            effective_w = min_w100 if min_w100 is not None else avg_wind
+            if effective_w is not None and effective_w < 3.0:
+                driver = f"v100 {effective_w:.1f} m/s below cut-in 3.0 m/s"
+                detail = f"Hub-height wind speed {effective_w:.1f} m/s drops below turbine cut-in threshold (3.0 m/s)."
+                return driver, detail
+
+            # Cut-out shutdown
+            high_w = max_w100 if max_w100 is not None else avg_wind
+            if high_w is not None and high_w >= 24.0:
+                driver = f"High wind cutout shutdown: wind speed {high_w:.1f} m/s exceeds safe limit"
+                detail = f"Hub-height winds reached {high_w:.1f} m/s; aerodynamic braking engaged for asset protection."
+                return driver, detail
+
+            # Sub-rated wind speed
+            if effective_w is not None and effective_w < 6.5:
+                driver = f"Sub-rated wind speed ({effective_w:.1f} m/s) in cubic power drop region"
+                detail = f"Hub wind speed {effective_w:.1f} m/s sits in the steep non-linear power curve regime."
+                return driver, detail
+
+            # Fallback wind deficit
+            driver = "Forecast generation falls below the P10 floor"
+            detail = f"P10 floor is {min_p10:.0f} MW against declared schedule of {peak_sched:.0f} MW."
+            return driver, detail
+
+    # 3. Surplus
+    if event_type == "surplus":
+        if is_solar and avg_cloud is not None and avg_cloud <= 20.0 and avg_ghi is not None and avg_ghi > 500:
+            driver = "Clear sky irradiance outperforming conservative declaration"
+            detail = f"Cloud cover at {avg_cloud:.0f}% with GHI {avg_ghi:.0f} W/m² yields higher than declared output."
+            return driver, detail
+        if is_wind and avg_w100 is not None and avg_w100 >= 8.5:
+            driver = f"Strong sustained hub wind ({avg_w100:.1f} m/s) driving generation above declaration"
+            detail = f"Hub winds average {avg_w100:.1f} m/s across the window."
+            return driver, detail
+        driver = "Expected output exceeds declared schedule"
+        p90_max = max((b.p90 for b in decision_slice), default=0.0)
+        min_sched = min((b.schedule_mw for b in decision_slice), default=0.0)
+        detail = f"P90 generation reaches {p90_max:.0f} MW against {min_sched:.0f} MW declared schedule."
+        return driver, detail
+
+    return "Forecast tracks declared schedule within normal tolerance", "No significant deviation detected."
+
+
+def detect_events(
+    site: Site,
+    block_decisions: list[BlockDecision],
+    forecast_blocks: list[ForecastBlock],
+    actions: list[RecommendedAction],
+    horizon_block: int,
+) -> list[RiskEvent]:
+    """Group contiguous risk blocks into unified operational events."""
+    cap = site.capacity_mw
+    n = len(block_decisions)
+    if n == 0:
+        return []
+
+    # Tag each block with its active risk condition
+    tags: list[str | None] = []
+    for d in block_decisions:
+        if d.curtailment_mw > 0.02 * cap:
+            tags.append("curtailment")
+        elif d.deficit_mw > 0.02 * cap:
+            tags.append("deficit")
+        elif d.surplus_mw > 0.05 * cap:
+            tags.append("surplus")
+        else:
+            tags.append(None)
+
+    events: list[RiskEvent] = []
+    i = 0
+    while i < n:
+        tag = tags[i]
+        if tag is None:
+            i += 1
+            continue
+
+        j = i
+        while j + 1 < n and tags[j + 1] == tag:
+            j += 1
+
+        b_start = block_decisions[i].block
+        b_end = block_decisions[j].block
+        duration_h = (j - i + 1) * BLOCK_HOURS
+
+        sub_decisions = block_decisions[i : j + 1]
+        sub_forecast = forecast_blocks[i : j + 1]
+
+        if tag == "curtailment":
+            peak_dev = max(d.curtailment_mw for d in sub_decisions)
+            peak_curt = peak_dev
+            energy_mwh = sum(d.curtailment_mw for d in sub_decisions) * BLOCK_HOURS
+        elif tag == "deficit":
+            peak_dev = max(d.deficit_mw for d in sub_decisions)
+            peak_curt = max(d.curtailment_mw for d in sub_decisions)
+            energy_mwh = sum(d.deficit_mw for d in sub_decisions) * BLOCK_HOURS
+        else:
+            peak_dev = max(d.surplus_mw for d in sub_decisions)
+            peak_curt = 0.0
+            energy_mwh = sum(d.surplus_mw for d in sub_decisions) * BLOCK_HOURS
+
+        run_blocks = [d.block for d in sub_decisions]
+        mean_width = float(np.mean([d.p90 - d.p10 for d in sub_decisions]))
+        severity = compute_severity(
+            capacity_mw=cap,
+            peak_deviation_mw=peak_dev,
+            peak_curtailment_mw=peak_curt,
+            duration_hours=duration_h,
+            tod_blocks=run_blocks,
+            width_mw=mean_width,
+        )
+        risk_level = severity_to_risk_level(severity)
+        driver, detail = attribute_driver(
+            site=site,
+            event_type=tag,
+            blocks_slice=sub_forecast,
+            decision_slice=sub_decisions,
+            peak_dev=peak_dev,
+            peak_curt=peak_curt,
+        )
+
+        # Cross-reference recommended actions for matching operational response
+        matching_actions = [
+            a for a in actions if (a.block_start <= b_end and a.block_end >= b_start)
+        ]
+        rec_action = None
+        if matching_actions:
+            top_action = max(matching_actions, key=lambda a: abs(a.cost_inr))
+            rec_action = f"{top_action.action.replace('_', ' ').title()}: {top_action.magnitude_mw:.0f} MW ({top_action.label})"
+        elif tag == "deficit":
+            rec_action = "Discharge storage or dispatch peaking capacity to cover shortfall"
+        elif tag == "curtailment":
+            rec_action = "Curtail generation or charge storage to respect transmission limit"
+        elif tag == "surplus":
+            rec_action = "Charge battery storage to absorb surplus generation"
+
+        # Annotate member block decisions with the event's driver
+        for k in range(i, j + 1):
+            block_decisions[k].driver = driver
+
+        event = RiskEvent(
+            event_type=tag,  # type: ignore[arg-type]
+            block_start=b_start,
+            block_end=b_end,
+            label=_span_label(b_start, b_end),
+            peak_deviation_mw=round(peak_dev, 1),
+            energy_mwh=round(energy_mwh, 1),
+            severity=severity,
+            risk_level=risk_level,
+            driver=driver,
+            driver_detail=detail,
+            recommended_action=rec_action,
+            actionable=b_end >= horizon_block,
+        )
+        events.append(event)
+        i = j + 1
+
+    # Fill any remaining unassigned block drivers
+    for k, d in enumerate(block_decisions):
+        if d.driver is None:
+            if d.severity >= 25:
+                drv, _ = attribute_driver(
+                    site,
+                    "curtailment" if d.curtailment_mw > 0 else ("deficit" if d.deficit_mw > 0 else "surplus"),
+                    [forecast_blocks[k]],
+                    [d],
+                    abs(d.deviation_mw),
+                    d.curtailment_mw,
+                )
+                d.driver = drv
+            else:
+                d.driver = "Generation tracks declared schedule within normal tolerance"
+
+    # Sort events by operational priority: highest severity first, then energy
+    events.sort(key=lambda e: (-e.severity, -e.energy_mwh))
+    return events
 
 
 # ═════════════════════════════════════════════════════════════════════════
@@ -491,25 +836,38 @@ def build_decisions(forecast: ForecastResponse) -> DecisionResponse:
     gas = np.minimum(residual_deficit, gas_ceiling)
     diesel = np.maximum(residual_deficit - gas_ceiling, 0.0)
 
-    block_rows = [
-        BlockDecision(
-            block=b.block,
-            label=b.label,
-            timestamp=b.timestamp,
-            locked=b.block < horizon_block,
-            p10=b.p10,
-            p50=b.p50,
-            p90=b.p90,
-            schedule_mw=round(float(schedule[i]), 1),
-            deviation_mw=round(float(deviation[i]), 1),
-            deficit_mw=round(float(deficit[i]), 1),
-            surplus_mw=round(float(surplus[i]), 1),
-            curtailment_mw=round(float(curtailment[i]), 1),
-            risk=_risk_level(float(deviation[i]), float(curtailment[i]), cap),
-            headroom_mw=round(float(evac - p50[i]), 1),
+    block_rows: list[BlockDecision] = []
+    for i, b in enumerate(rows):
+        b_dev = float(deviation[i])
+        b_curt = float(curtailment[i])
+        b_sev = compute_severity(
+            capacity_mw=cap,
+            peak_deviation_mw=b_dev,
+            peak_curtailment_mw=b_curt,
+            duration_hours=BLOCK_HOURS,
+            tod_blocks=b.block,
+            width_mw=float(b.p90 - b.p10),
         )
-        for i, b in enumerate(rows)
-    ]
+        block_rows.append(
+            BlockDecision(
+                block=b.block,
+                label=b.label,
+                timestamp=b.timestamp,
+                locked=b.block < horizon_block,
+                p10=b.p10,
+                p50=b.p50,
+                p90=b.p90,
+                schedule_mw=round(float(schedule[i]), 1),
+                deviation_mw=round(b_dev, 1),
+                deficit_mw=round(float(deficit[i]), 1),
+                surplus_mw=round(float(surplus[i]), 1),
+                curtailment_mw=round(b_curt, 1),
+                risk=severity_to_risk_level(b_sev),
+                severity=b_sev,
+                driver=None,
+                headroom_mw=round(float(evac - p50[i]), 1),
+            )
+        )
 
     actions: list[RecommendedAction] = []
     for action, magnitudes in (
@@ -526,6 +884,9 @@ def build_decisions(forecast: ForecastResponse) -> DecisionResponse:
     # do something about first.
     actions.sort(key=lambda a: (not a.actionable, -abs(a.cost_inr)))
 
+    # Detect grouped operational events and attribute physical drivers
+    events = detect_events(site, block_rows, rows, actions, horizon_block)
+
     worst = int(np.argmax(np.abs(deviation))) if len(deviation) else None
 
     return DecisionResponse(
@@ -540,13 +901,14 @@ def build_decisions(forecast: ForecastResponse) -> DecisionResponse:
         ),
         blocks=block_rows,
         actions=actions,
+        events=events,
         deficit_energy_mwh=round(float(deficit.sum()) * BLOCK_HOURS, 1),
         surplus_energy_mwh=round(float(surplus.sum()) * BLOCK_HOURS, 1),
         curtailment_energy_mwh=round(float(curtailment.sum()) * BLOCK_HOURS, 1),
         net_cost_inr=round(sum(a.cost_inr for a in actions), 0),
         net_co2_tonnes=round(sum(a.co2_tonnes for a in actions), 2),
         worst_block=block_rows[worst].block if worst is not None and block_rows else None,
-        headline=_headline(site, block_rows, actions, float(curtailment.sum()) * BLOCK_HOURS),
+        headline=_headline(site, block_rows, actions, float(curtailment.sum()) * BLOCK_HOURS, events),
     )
 
 
@@ -555,6 +917,7 @@ def _headline(
     blocks: list[BlockDecision],
     actions: list[RecommendedAction],
     curtail_mwh: float,
+    events: list[RiskEvent] | None = None,
 ) -> str:
     """One sentence for the top of the page.
 
@@ -563,6 +926,16 @@ def _headline(
     from a payload computed in Python is a headline that will eventually
     contradict the table under it.
     """
+    if events:
+        critical_events = [e for e in events if e.risk_level == "critical"]
+        serious_events = [e for e in events if e.risk_level == "serious"]
+        if critical_events:
+            ev = critical_events[0]
+            return f"Critical {ev.event_type} risk: {ev.label} ({ev.peak_deviation_mw:.0f} MW peak, severity {ev.severity}). {ev.driver}"
+        if serious_events:
+            ev = serious_events[0]
+            return f"Serious {ev.event_type} risk: {ev.label} ({ev.peak_deviation_mw:.0f} MW peak, severity {ev.severity}). {ev.driver}"
+
     critical = [b for b in blocks if b.risk == "critical"]
     serious = [b for b in blocks if b.risk == "serious"]
     actionable = [a for a in actions if a.actionable]
@@ -588,4 +961,13 @@ def _headline(
     return "Forecast tracks the declared schedule across the day. No action required."
 
 
-__all__ = ["build_decisions", "synthesise_schedule", "tariff_for", "BLOCK_HOURS"]
+__all__ = [
+    "build_decisions",
+    "synthesise_schedule",
+    "tariff_for",
+    "compute_severity",
+    "severity_to_risk_level",
+    "attribute_driver",
+    "detect_events",
+    "BLOCK_HOURS",
+]

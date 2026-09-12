@@ -160,8 +160,25 @@ export interface BlockDecision {
   surplus_mw: number;
   curtailment_mw: number;
   risk: RiskLevel;
+  severity?: number;
+  driver?: string | null;
   /** Evacuation limit minus p50. Negative means congestion at the median. */
   headroom_mw: number;
+}
+
+export interface RiskEvent {
+  event_type: "deficit" | "surplus" | "curtailment";
+  block_start: number;
+  block_end: number;
+  label: string;
+  peak_deviation_mw: number;
+  energy_mwh: number;
+  severity: number;
+  risk_level: RiskLevel;
+  driver: string;
+  driver_detail?: string | null;
+  recommended_action?: string | null;
+  actionable: boolean;
 }
 
 export interface RecommendedAction {
@@ -191,6 +208,7 @@ export interface DecisionResponse {
   schedule_basis: string;
   blocks: BlockDecision[];
   actions: RecommendedAction[];
+  events?: RiskEvent[];
   deficit_energy_mwh: number;
   surplus_energy_mwh: number;
   curtailment_energy_mwh: number;
@@ -324,5 +342,78 @@ export interface SimulatorDefaultsResponse {
   site_name: string;
   capacity_mw: number;
   defaults: Record<string, number>;
+}
+
+/* ── Historical Ingest & History ────────────────────────────────────────── */
+
+export interface IngestPreviewRow {
+  row_index: number;
+  raw_timestamp: string;
+  raw_generation: string;
+  parsed_ts: string | null;
+  block: number | null;
+  generation_mw: number | null;
+  valid: boolean;
+  errors: string[];
+}
+
+export interface IngestValidateResponse {
+  site_id: string;
+  site_name: string;
+  capacity_mw: number;
+  technology: string;
+  headers: string[];
+  detected_mapping: {
+    timestamp: string | null;
+    generation_mw: string | null;
+  };
+  preview_rows: IngestPreviewRow[];
+  total_rows: number;
+  valid_rows_count: number;
+  invalid_rows_count: number;
+  resolution: "15-minute" | "hourly" | "other" | string;
+  date_range_start: string | null;
+  date_range_end: string | null;
+  is_chronological: boolean;
+  duplicate_count: number;
+  summary_message: string;
+}
+
+export interface SkippedRowDetail {
+  row_index: number;
+  raw_timestamp: string;
+  raw_generation: string;
+  reason: string;
+}
+
+export interface IngestResponse {
+  site_id: string;
+  site_name: string;
+  capacity_mw: number;
+  technology: string;
+  imported_rows: number;
+  skipped_rows: number;
+  resolution: "15-minute" | "hourly" | "other" | string;
+  date_range_start: string | null;
+  date_range_end: string | null;
+  message: string;
+  skipped_rows_data: SkippedRowDetail[];
+}
+
+export interface HistoryResponse {
+  site_id: string;
+  site_name: string;
+  capacity_mw: number;
+  technology: string;
+  actuals_count: number;
+  date_range_start: string | null;
+  date_range_end: string | null;
+  scored_blocks_count: number;
+  recent_actuals: Array<{
+    ts: string;
+    block: number;
+    actual_mw: number;
+    source: string;
+  }>;
 }
 

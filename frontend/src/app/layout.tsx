@@ -92,6 +92,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               <Link href="/simulator" className="underline-offset-4 hover:underline">
                 Simulator
               </Link>
+              <Link href="/ingest" className="underline-offset-4 hover:underline">
+                Ingest
+              </Link>
             </nav>
 
             <div className="ml-auto flex items-center gap-4">

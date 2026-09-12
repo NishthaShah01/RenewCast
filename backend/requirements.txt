@@ -10,3 +10,4 @@ lightgbm
 joblib
 pyarrow
 python-dotenv
+python-multipart

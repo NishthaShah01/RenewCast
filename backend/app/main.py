@@ -31,6 +31,7 @@ from app.routers import (
     decisions,
     forecast,
     health,
+    ingest,
     simulator,
     sites,
 )
@@ -119,6 +120,7 @@ app.include_router(decisions.router, prefix="/api")
 app.include_router(accuracy.router, prefix="/api")
 app.include_router(copilot.router, prefix="/api")
 app.include_router(simulator.router, prefix="/api")
+app.include_router(ingest.router, prefix="/api")
 
 
 @app.get("/", include_in_schema=False)

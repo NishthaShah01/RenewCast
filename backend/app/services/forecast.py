@@ -244,6 +244,13 @@ def generate_forecast(site: Site, horizon_hours: int | None = None) -> ForecastR
             is_daylight=bool(feat["physics_cf"].iloc[i] > 0.001)
             if site.technology == "solar"
             else True,
+            temp_c=round(float(feat["temp_c"].iloc[i]), 1) if "temp_c" in feat.columns else None,
+            cloud_pct=round(float(feat["cloud_pct"].iloc[i]), 1) if "cloud_pct" in feat.columns else None,
+            wind_ms=round(float(feat["wind_ms"].iloc[i]), 1) if "wind_ms" in feat.columns else None,
+            wind_100_ms=round(float(feat["wind_100_ms"].iloc[i]), 1) if "wind_100_ms" in feat.columns else None,
+            ghi=round(float(feat["ghi"].iloc[i]), 1) if "ghi" in feat.columns else None,
+            clear_sky_index=round(float(feat["clear_sky_index"].iloc[i]), 2) if "clear_sky_index" in feat.columns else None,
+            solar_elevation=round(float(feat["solar_elevation"].iloc[i]), 1) if "solar_elevation" in feat.columns else None,
         )
         for i, row in enumerate(blocks.itertuples())
     ]
