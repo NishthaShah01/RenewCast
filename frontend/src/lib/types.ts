@@ -139,7 +139,8 @@ export type ActionType =
   | "battery_discharge"
   | "curtail"
   | "gas_peaker"
-  | "diesel";
+  | "diesel"
+  | "demand_shift";
 
 export interface BlockDecision {
   block: number;
@@ -237,3 +238,91 @@ export interface CopilotResponse {
   mode: "gemini" | "deterministic";
   grounded_on: string;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   WHAT-IF SIMULATOR
+   ═══════════════════════════════════════════════════════════════════════ */
+
+export interface SimulatorRequest {
+  site_id: string;
+  battery_power_mw?: number | null;
+  battery_energy_mwh?: number | null;
+  battery_initial_soc_pct?: number | null;
+  battery_rte_pct?: number | null;
+  flexible_demand_mw?: number;
+  backup_capacity_mw?: number | null;
+  backup_notice_hours?: number;
+  evacuation_limit_mw?: number | null;
+  tariff_per_mwh?: number | null;
+  gas_peaker_cost_per_mwh?: number | null;
+  diesel_cost_per_mwh?: number | null;
+  grid_emission_factor?: number | null;
+}
+
+export interface SimulationMetrics {
+  served_energy_mwh: number;
+  curtailed_energy_mwh: number;
+  unserved_energy_mwh: number;
+  net_cost_inr: number;
+  net_co2_tonnes: number;
+  deficit_energy_mwh: number;
+  surplus_energy_mwh: number;
+}
+
+export interface SimulationDeltas {
+  served_energy_mwh: number;
+  curtailed_energy_mwh: number;
+  unserved_energy_mwh: number;
+  net_cost_inr: number;
+  net_co2_tonnes: number;
+}
+
+export interface AttributionItem {
+  lever: string;
+  unserved_delta_mwh: number;
+  curtailed_delta_mwh: number;
+  cost_delta_inr: number;
+  co2_delta_tonnes: number;
+}
+
+export interface BreakEvenResult {
+  feasible: boolean;
+  minimum_power_mw: number;
+  minimum_energy_mwh: number;
+  message: string;
+}
+
+export interface SimulatorTimelineBlock {
+  block: number;
+  label: string;
+  schedule_mw: number;
+  baseline_dispatch_mw: number;
+  scenario_dispatch_mw: number;
+  baseline_unserved_mw: number;
+  scenario_unserved_mw: number;
+  evacuation_limit_mw: number;
+}
+
+export interface SimulatorResponse {
+  site_id: string;
+  site_name: string;
+  capacity_mw: number;
+  baseline_config: Record<string, number>;
+  scenario_config: Record<string, number>;
+  baseline: SimulationMetrics;
+  scenario: SimulationMetrics;
+  deltas: SimulationDeltas;
+  primary_message: string;
+  break_even: BreakEvenResult;
+  attribution: AttributionItem[];
+  actions: RecommendedAction[];
+  timeline: SimulatorTimelineBlock[];
+}
+
+export interface SimulatorDefaultsResponse {
+  site_id: string;
+  site_name: string;
+  capacity_mw: number;
+  defaults: Record<string, number>;
+}
+

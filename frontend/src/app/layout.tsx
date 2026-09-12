@@ -89,6 +89,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               <Link href="/accuracy" className="underline-offset-4 hover:underline">
                 Accuracy
               </Link>
+              <Link href="/simulator" className="underline-offset-4 hover:underline">
+                Simulator
+              </Link>
             </nav>
 
             <div className="ml-auto flex items-center gap-4">

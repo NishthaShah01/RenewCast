@@ -24,9 +24,7 @@ export default function SimulatorPage() {
   const [showFullAttribution, setShowFullAttribution] = useState<boolean>(false);
 
   // Authoritative baseline defaults from backend
-  const [baselineDefaults, setBaselineDefaults] = useState<
-    Record<string, number | string | boolean | undefined>
-  >({});
+  const [baselineDefaults, setBaselineDefaults] = useState<Record<string, number>>({});
 
   // Core scenario levers
   const [batteryPowerMw, setBatteryPowerMw] = useState<number>(100);

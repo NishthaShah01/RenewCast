@@ -17,6 +17,9 @@ import type {
   HealthResponse,
   Site,
   SiteListResponse,
+  SimulatorDefaultsResponse,
+  SimulatorRequest,
+  SimulatorResponse,
   Technology,
 } from "./types";
 
@@ -130,4 +133,17 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ site_id: siteId, question }),
     }),
+
+  simulate: (req: SimulatorRequest, options?: RequestOptions) =>
+    request<SimulatorResponse>("/api/simulate", {
+      ...options,
+      method: "POST",
+      body: JSON.stringify(req),
+    }),
+
+  simulateDefaults: (siteId: string, options?: RequestOptions) =>
+    request<SimulatorDefaultsResponse>(
+      `/api/simulate/defaults/${encodeURIComponent(siteId)}`,
+      options,
+    ),
 };

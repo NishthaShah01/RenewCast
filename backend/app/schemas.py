@@ -16,7 +16,7 @@ than copied into parallel DTOs.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -182,6 +182,7 @@ ActionType = Literal[
     "curtail",
     "gas_peaker",
     "diesel",
+    "demand_shift",
 ]
 
 
@@ -359,10 +360,105 @@ class CopilotResponse(BaseModel):
     answer appears here; the model is never asked to compute one."""
 
 
+# ═════════════════════════════════════════════════════════════════════════
+# SIMULATOR
+# ═════════════════════════════════════════════════════════════════════════
+
+
+class SimulatorRequest(BaseModel):
+    site_id: str = "bhadla"
+    # Battery controls
+    battery_power_mw: float | None = Field(default=None, ge=0, description="Battery power rating in MW")
+    battery_energy_mwh: float | None = Field(default=None, ge=0, description="Battery storage capacity in MWh")
+    battery_initial_soc_pct: float | None = Field(default=None, ge=0, le=100, description="Initial State of Charge %")
+    battery_rte_pct: float | None = Field(default=None, ge=50, le=100, description="Round-trip efficiency %")
+    # Flexible demand
+    flexible_demand_mw: float = Field(default=0.0, ge=0, description="Flexible demand shift capability in MW")
+    # Backup
+    backup_capacity_mw: float | None = Field(default=None, ge=0, description="Peaking backup capacity in MW")
+    backup_notice_hours: float = Field(default=0.0, ge=0, le=24, description="Lead notice hours required before backup can start")
+    # Grid
+    evacuation_limit_mw: float | None = Field(default=None, gt=0, description="Grid export / evacuation limit in MW")
+    # Economics
+    tariff_per_mwh: float | None = Field(default=None, ge=0, description="PPA tariff in ₹/MWh")
+    gas_peaker_cost_per_mwh: float | None = Field(default=None, ge=0, description="Gas peaker generation cost in ₹/MWh")
+    diesel_cost_per_mwh: float | None = Field(default=None, ge=0, description="Diesel generation cost in ₹/MWh")
+    grid_emission_factor: float | None = Field(default=None, ge=0, description="Grid emission factor in tCO2/MWh")
+
+
+class SimulationMetrics(BaseModel):
+    served_energy_mwh: float
+    curtailed_energy_mwh: float
+    unserved_energy_mwh: float
+    net_cost_inr: float
+    net_co2_tonnes: float
+    deficit_energy_mwh: float = 0.0
+    surplus_energy_mwh: float = 0.0
+
+
+class SimulationDeltas(BaseModel):
+    served_energy_mwh: float
+    curtailed_energy_mwh: float
+    unserved_energy_mwh: float
+    net_cost_inr: float
+    net_co2_tonnes: float
+
+
+class AttributionItem(BaseModel):
+    lever: str
+    unserved_delta_mwh: float
+    curtailed_delta_mwh: float
+    cost_delta_inr: float
+    co2_delta_tonnes: float
+
+
+class BreakEvenResult(BaseModel):
+    feasible: bool
+    minimum_power_mw: float
+    minimum_energy_mwh: float
+    message: str
+
+
+class SimulatorTimelineBlock(BaseModel):
+    block: int = Field(ge=1, le=96)
+    label: str
+    schedule_mw: float
+    baseline_dispatch_mw: float
+    scenario_dispatch_mw: float
+    baseline_unserved_mw: float
+    scenario_unserved_mw: float
+    evacuation_limit_mw: float
+
+
+class SimulatorResponse(BaseModel):
+    site_id: str
+    site_name: str
+    capacity_mw: float
+    baseline_config: dict[str, Any]
+    scenario_config: dict[str, Any]
+    baseline: SimulationMetrics
+    scenario: SimulationMetrics
+    deltas: SimulationDeltas
+    primary_message: str
+    break_even: BreakEvenResult
+    attribution: list[AttributionItem]
+    actions: list[RecommendedAction]
+    timeline: list[SimulatorTimelineBlock] = Field(default_factory=list)
+
+
+class SimulatorDefaultsResponse(BaseModel):
+    site_id: str
+    site_name: str
+    capacity_mw: float
+    defaults: dict[str, Any]
+
+
 __all__ = [
     "AccuracyResponse",
     "ActionType",
+    "AttributionItem",
     "BlockDecision",
+    "BreakEvenResult",
     "CopilotRequest",
     "CopilotResponse",
     "DecisionResponse",
@@ -373,6 +469,12 @@ __all__ = [
     "HealthResponse",
     "RecommendedAction",
     "RiskLevel",
+    "SimulationDeltas",
+    "SimulationMetrics",
+    "SimulatorDefaultsResponse",
+    "SimulatorRequest",
+    "SimulatorResponse",
+    "SimulatorTimelineBlock",
     "Site",
     "SiteListResponse",
     "Technology",
