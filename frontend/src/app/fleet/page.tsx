@@ -315,9 +315,9 @@ function TechnologyComparison({
   const solarGenPct = totalP50 > 0 ? (solarP50 / totalP50) * 100 : 0;
   const windGenPct = totalP50 > 0 ? (windP50 / totalP50) * 100 : 0;
 
-  // Calm, desaturated power-system operational colours
-  const SOLAR_COLOR = "#D96868";
-  const WIND_COLOR = "#F2F2F2";
+  // Power-system operational colours for technology comparison
+  const SOLAR_COLOR = "#601D49";
+  const WIND_COLOR = "#BD5579";
 
   return (
     <Panel
@@ -365,7 +365,7 @@ function TechnologyComparison({
               </span>
               <div className="h-2 flex-1 overflow-hidden rounded-sm bg-[var(--gridline)]">
                 <div
-                  className="h-full rounded-sm border border-[var(--baseline)]/40"
+                  className="h-full rounded-sm"
                   style={{
                     width: `${windCapPct}%`,
                     backgroundColor: WIND_COLOR,
@@ -416,7 +416,7 @@ function TechnologyComparison({
               </span>
               <div className="h-2 flex-1 overflow-hidden rounded-sm bg-[var(--gridline)]">
                 <div
-                  className="h-full rounded-sm border border-[var(--baseline)]/40"
+                  className="h-full rounded-sm"
                   style={{
                     width: `${windGenPct}%`,
                     backgroundColor: WIND_COLOR,
@@ -445,7 +445,7 @@ function TechnologyComparison({
           </div>
           <div className="flex items-center gap-2">
             <span
-              className="size-2 rounded-full border border-[var(--baseline)]"
+              className="size-2 rounded-full"
               style={{ backgroundColor: WIND_COLOR }}
               aria-hidden="true"
             />
@@ -627,9 +627,9 @@ function FleetTable({
                   <Td>
                     <span className="inline-flex items-center gap-1.5 rounded border border-[var(--gridline)] bg-[var(--page)] px-2 py-0.5 text-11 font-medium">
                       <span
-                        className="size-2 rounded-full border border-[var(--baseline)]/50"
+                        className="size-2 rounded-full"
                         style={{
-                          background: isSolar ? "#D96868" : "#F2F2F2",
+                          background: isSolar ? "#601D49" : "#BD5579",
                         }}
                       />
                       {technologyLabel(site.technology)}
