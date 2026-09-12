@@ -316,8 +316,8 @@ function TechnologyComparison({
   const windGenPct = totalP50 > 0 ? (windP50 / totalP50) * 100 : 0;
 
   // Calm, desaturated power-system operational colours
-  const SOLAR_COLOR = "#C78A00"; // Muted warm amber / ochre
-  const WIND_COLOR = "#4F82B8"; // Muted steel blue
+  const SOLAR_COLOR = "#B06B45";
+  const WIND_COLOR = "#587A92";
 
   return (
     <Panel
