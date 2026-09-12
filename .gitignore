@@ -26,7 +26,7 @@ dist/
 # ── Backend data (regenerable — never committed) ──────────────────────────
 backend/data/raw/
 backend/data/processed/
-backend/data/cache/
+backend/data/cache/*.tmp
 backend/data/*.db
 backend/data/*.db-journal
 *.parquet
