@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { Copilot } from "@/components/Copilot";
+import { DecisionSummary } from "@/components/DecisionSummary";
 import { DeviationStrip } from "@/components/DeviationStrip";
 import { Caveat, Panel, ServiceDown, Stat, StatusDot, Td, Th, riskToStatus } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
@@ -68,10 +69,13 @@ export default async function DecisionsPage(
         </nav>
 
         <h1 className="text-24 font-semibold tracking-[-0.01em]">Despatch plan</h1>
-        <p className="mt-1 max-w-[86ch] text-14 text-ink-secondary">
-          {decisions.headline}
-        </p>
       </div>
+
+      {/* The plan in four lines, above the technical view it summarises. The
+          headline used to sit under the h1; it is the summary's first line now,
+          because printing the same sentence twice a hundred pixels apart reads
+          as a bug. Everything below is untouched. */}
+      <DecisionSummary decisions={decisions} />
 
       <Panel
         title="Today"

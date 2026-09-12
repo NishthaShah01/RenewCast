@@ -32,6 +32,9 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...but the template is the one file that must be committed, or a fresh clone
+# has no way to learn which variables the app expects. Matches backend/.env.example.
+!.env.local.example
 
 # vercel
 .vercel

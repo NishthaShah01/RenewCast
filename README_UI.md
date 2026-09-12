@@ -919,6 +919,22 @@ Met without announcing it.
 
 ## 17. Page layouts
 
+> **Routes as built.** This section is the full design target. The shipped app
+> consolidates it into four routes, and the layouts below describe what each one
+> contains rather than a route that exists for every heading.
+>
+> | Route | Status | Covers |
+> |-------|--------|--------|
+> | `/` | built | §17.1 Command Centre — fleet list, per-site status |
+> | `/sites/[siteId]` | built | §17.2 Forecast — the P10/P50/P90 band, the 24/48/72 h window selector, plant configuration |
+> | `/sites/[siteId]/decisions` | built | §17.1 hero + §17.3 Risk & Actions — decision summary, deviation strip, merit-ordered actions, the 96-block table, copilot |
+> | `/accuracy` | built | §17.6 Accuracy & Model Card |
+> | `/forecast`, `/risk` | **not built as routes** | folded into the two site routes above — a forecast and a plan are always *for a site*, so the site id belongs in the path rather than in a filter dropdown |
+> | `/simulator`, `/fleet` | **not built** | §17.4 and §17.5 are unimplemented; no backend endpoint backs them yet |
+>
+> The consolidation is deliberate, not an omission: every behaviour §17.2 and
+> §17.3 specify is reachable, one level down from the site it belongs to.
+
 ### 17.1 Command Centre — `/`
 
 ```
@@ -951,6 +967,9 @@ state — *"Within schedule band · No action needed through block 96"* — not 
 
 ### 17.2 Forecast — `/forecast`
 
+*Built as `/sites/[siteId]`.* The horizon control is the 24/48/72 h selector on the
+forecast panel; the site dropdown is the route itself.
+
 Filter row → the forecast band at full height → weather driver strips sharing the axis →
 lead-time accuracy note → table view.
 
@@ -977,6 +996,9 @@ legible. Do not clamp it to look tidy.
 
 ### 17.3 Risk & Actions — `/risk`
 
+*Built as `/sites/[siteId]/decisions`.* Risk is carried per block in the deviation
+strip and the attention table rather than as a separate linked event list.
+
 Event list (left, 40%) ↔ spine detail (right, 60%), linked selection. Selecting an event
 scrolls and highlights its span. Each event card: severity pill with icon and label,
 block range with clock times, magnitude, duration, driver attribution
@@ -987,6 +1009,8 @@ in plain words — *"Served 184 MWh · curtailed 0 MWh · unserved 0 MWh of 184 
 
 ### 17.4 Simulator — `/simulator`
 
+*Not built.* Design target only.
+
 Controls left (320px, live), outcome right. Two spines stacked: **baseline** above,
 **scenario** below, on the same axis so the difference is a vertical read. A delta strip
 between them shows the change per block on the diverging scale.
@@ -996,11 +1020,15 @@ against baseline.
 
 ### 17.5 Fleet — `/fleet`
 
+*Not built as a route.* The fleet overview is the Command Centre at `/`.
+
 Five small multiples, faceted, **coloured by technology only** (the all-pairs cap, §5.2).
 Each facet: site name, capacity, a compact spine, a status pill, and the next event.
 Sortable by severity, capacity, or deviation. A table view carries the same data.
 
 ### 17.6 Accuracy & Model Card — `/accuracy`
+
+*Built.*
 
 The credibility page. Judges will spend real time here.
 
@@ -1082,20 +1110,24 @@ a second, or the bands will drift out of alignment and the whole design collapse
 
 ### Endpoint → surface binding
 
-| Endpoint | Feeds |
-|---|---|
-| `GET /api/sites` | Site combobox, fleet |
-| `GET /api/forecast/{id}?horizon=` | Forecast band, hero, stat tiles |
-| `GET /api/weather/{id}` | Weather driver strips |
-| `GET /api/risk/{id}` | Risk band, event list |
-| `GET /api/actions/{id}` | Action table, plan band |
-| `POST /api/simulate` | Simulator |
-| `POST /api/copilot` | Copilot drawer |
-| `GET /api/backtest/{tech}` | Accuracy charts |
-| `GET /api/model/card` | Model card |
-| `GET /api/fleet` | Fleet small multiples |
-| `GET /api/history/{id}` | Forecast-vs-actual comparison |
-| `POST /api/ingest/csv` | CSV ingest form |
+| Endpoint | Feeds | Status |
+|---|---|---|
+| `GET /api/sites` | Site list, Command Centre | **built** |
+| `GET /api/forecast/{id}?horizon_hours=` | Forecast band, stat tiles, horizon selector | **built** |
+| `GET /api/decisions/{id}` | Decision summary, deviation strip, action table, 96-block table | **built** — covers `/api/risk` and `/api/actions` below |
+| `GET /api/accuracy` | Accuracy charts, model card | **built** — covers `/api/backtest` and `/api/model/card` below |
+| `POST /api/copilot` | Copilot | **built** |
+| `GET /api/weather/{id}` | Weather driver strips | planned — drivers ride inside the forecast response |
+| `GET /api/risk/{id}` | Risk band, event list | planned |
+| `GET /api/actions/{id}` | Action table, plan band | planned |
+| `POST /api/simulate` | Simulator | planned |
+| `GET /api/backtest/{tech}` | Accuracy charts | planned |
+| `GET /api/model/card` | Model card | planned |
+| `GET /api/fleet` | Fleet small multiples | planned |
+| `GET /api/history/{id}` | Forecast-vs-actual comparison | planned |
+| `POST /api/ingest/csv` | CSV ingest form | planned |
+
+The forecast query parameter is `horizon_hours`.
 
 TanStack Query throughout, `keepPreviousData: true` — that flag is what implements
 "refetch holds the frame" (§13).

@@ -200,7 +200,7 @@ statement), Docker for local dev (adds friction on Windows).
 ### 4.2 Online — every dashboard load
 
 ```
- GET /api/forecast/bhadla-solar?horizon=72
+ GET /api/forecast/bhadla-solar?horizon_hours=72
    │
    ├─ 1. site lookup            sites.py → lat, lon, capacity_mw, tech, tilt, turbine class
    ├─ 2. weather fetch          weather.py → Open-Meteo forecast (file-cached 30 min)
@@ -472,24 +472,30 @@ Suggested prompts we ship as chips: *"Why is tomorrow evening risky?"* · *"What
 
 Base: `/api` · JSON · CORS open to the frontend origin · OpenAPI docs auto-served at `/docs`.
 
-| Method | Path | Purpose |
-|--------|------|---------|
-| `GET` | `/api/health` | liveness + model version + whether Gemini is configured |
-| `GET` | `/api/sites` | site registry with live current-hour output |
-| `GET` | `/api/sites/{id}` | full site detail: geometry, assets, tariffs, demand profile |
-| `PATCH` | `/api/sites/{id}/config` | edit assets/tariffs/limits from the UI |
-| `GET` | `/api/forecast/{id}?horizon=24\|48\|72` | hourly P10/P50/P90 MW, `cf_physics`, weather drivers |
-| `GET` | `/api/weather/{id}?horizon=72` | raw NWP series for the Weather Drivers panel |
-| `GET` | `/api/risk/{id}?horizon=72` | detected events: type, window, peak MW, severity, drivers |
-| `GET` | `/api/actions/{id}?horizon=72` | ranked actions + dispatch plan + quantified impact |
-| `POST` | `/api/simulate` | scenario config → deltas, waterfall, break-even |
-| `POST` | `/api/copilot` | `{site_id, question, horizon}` → grounded answer |
-| `GET` | `/api/backtest/{tech}` | metrics vs 3 baselines, per-lead-bucket, error distribution |
-| `GET` | `/api/model/card` | features, training data, metrics, **stated limitations** |
-| `GET` | `/api/fleet?horizon=72` | portfolio aggregate across all sites |
-| `GET` | `/api/history/{id}` | logged forecast vs actual over time |
-| `POST` | `/api/ingest/csv` | upload own plant actuals *(stretch)* |
-| `GET` | `/api/ingest/perform/status` | ARPA-E PERFORM adapter availability + BA list |
+| Method | Path | Purpose | Status |
+|--------|------|---------|--------|
+| `GET` | `/api/health` | liveness + model version + whether Gemini is configured | **built** |
+| `GET` | `/api/sites` | site registry with live current-hour output | **built** |
+| `GET` | `/api/sites/{id}` | full site detail: geometry, assets, tariffs, demand profile | **built** |
+| `PATCH` | `/api/sites/{id}/config` | edit assets/tariffs/limits from the UI | planned |
+| `GET` | `/api/forecast/{id}?horizon_hours=24\|48\|72` | block-level P10/P50/P90 MW, `cf_physics`, weather drivers | **built** |
+| `GET` | `/api/forecast/{id}/summary` | energy summary for one site | **built** |
+| `GET` | `/api/forecast` | energy summary across all sites | **built** |
+| `GET` | `/api/decisions/{id}?horizon_hours=` | ranked actions + dispatch plan + quantified impact + 96-block detail | **built** |
+| `GET` | `/api/accuracy` | metrics vs baselines, per-lead-bucket, model card | **built** |
+| `POST` | `/api/copilot` | `{site_id, question}` → grounded answer | **built** |
+| `GET` | `/api/weather/{id}?horizon=72` | raw NWP series for the Weather Drivers panel | planned — drivers ship inside the forecast response |
+| `GET` | `/api/risk/{id}?horizon=72` | detected events: type, window, peak MW, severity, drivers | planned — risk is per block inside `/api/decisions` |
+| `GET` | `/api/actions/{id}?horizon=72` | ranked actions | **folded into `/api/decisions/{id}`** |
+| `POST` | `/api/simulate` | scenario config → deltas, waterfall, break-even | planned |
+| `GET` | `/api/backtest/{tech}` | metrics vs 3 baselines | **folded into `/api/accuracy`** |
+| `GET` | `/api/model/card` | features, training data, metrics, **stated limitations** | **folded into `/api/accuracy`** |
+| `GET` | `/api/fleet?horizon=72` | portfolio aggregate across all sites | planned — `/api/forecast` covers the aggregate |
+| `GET` | `/api/history/{id}` | logged forecast vs actual over time | planned |
+| `POST` | `/api/ingest/csv` | upload own plant actuals *(stretch)* | planned |
+| `GET` | `/api/ingest/perform/status` | ARPA-E PERFORM adapter availability + BA list | planned |
+
+The query parameter is `horizon_hours`, not `horizon`.
 
 **Canonical forecast response**
 ```jsonc
@@ -575,7 +581,7 @@ RENEWCAST/
 │   └── tests/                         # physics sanity, no-leak assertion, dispatch energy balance
 │
 └── frontend/                          # Next.js 15 — full spec in README_UI.md
-    ├── src/app/                       # / · /forecast · /risk · /simulator · /fleet · /accuracy
+    ├── src/app/                       # / · /sites/[siteId] · /sites/[siteId]/decisions · /accuracy
     ├── src/components/                # charts, panels, cards, copilot
     ├── src/lib/api.ts                 # typed client, one fn per endpoint
     └── .env.local
