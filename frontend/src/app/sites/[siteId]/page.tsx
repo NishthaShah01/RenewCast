@@ -8,7 +8,6 @@ import { api, ApiError } from "@/lib/api";
 import { blockStartLabel } from "@/lib/blocks";
 import { splitDays } from "@/lib/days";
 import {
-  ACTION_LABELS,
   issuedAtLabel,
   mw,
   mwh,
@@ -114,9 +113,6 @@ export default async function SitePage(props: PageProps<"/sites/[siteId]">) {
     <div className="flex flex-col gap-8">
       <SiteHeader site={site} forecast={forecast} />
 
-      {/* Primary Operational Decision Callout */}
-      {decisions ? <DecisionsSummary decisions={decisions} siteId={site.id} /> : null}
-
       <Panel
         title="Forecast"
         action={<HorizonSelector value={horizon} />}
@@ -188,6 +184,8 @@ export default async function SitePage(props: PageProps<"/sites/[siteId]">) {
         </dl>
       </Panel>
 
+      {decisions ? <DecisionsSummary decisions={decisions} siteId={site.id} /> : null}
+
       <PlantConfiguration site={site} />
     </div>
   );
@@ -238,74 +236,41 @@ function DecisionsSummary({
   siteId: string;
 }) {
   const actionable = decisions.actions.filter((a) => a.actionable);
-  const lead = actionable[0];
-  const hasAlert =
-    decisions.worst_block &&
-    decisions.blocks.find((b) => b.block === decisions.worst_block)?.risk !== "good";
 
   return (
     <Panel
-      title="Operational status & decision"
-      meta={
-        <span className="flex items-center gap-1.5">
-          <span
-            className="size-2 rounded-full"
-            style={{
-              background: hasAlert ? "var(--status-serious)" : "var(--status-good)",
-            }}
-            aria-hidden="true"
-          />
-          <span className="font-medium">
-            {hasAlert ? "Action recommended" : "Operating on schedule"}
-          </span>
-        </span>
-      }
+      title="Despatch plan"
       action={
         <Link
           href={`/sites/${siteId}/decisions`}
-          className="rounded-control bg-[var(--ink-primary)] px-3 py-1 text-12 font-medium text-[var(--surface)] hover:opacity-90 active:opacity-100"
+          className="text-12 font-medium underline-offset-2 hover:underline"
         >
-          Despatch plan →
+          Open plan
         </Link>
       }
     >
-      <div className="flex flex-col gap-3 px-4 py-4">
-        <p className="max-w-[86ch] text-15 font-medium text-ink-primary">
-          {decisions.headline}
-        </p>
+      <div className="px-4 py-4">
+        <p className="max-w-[86ch] text-14">{decisions.headline}</p>
 
-        {lead ? (
-          <div className="rounded border border-[var(--gridline)] bg-[var(--page)]/50 px-3 py-2 text-12">
-            <span className="font-semibold text-ink-primary">Top recommendation: </span>
-            <span className="text-ink-secondary">
-              {ACTION_LABELS[lead.action] ?? lead.action} at {lead.magnitude_mw.toFixed(0)} MW (
-              {lead.block_start === lead.block_end
-                ? `block ${lead.block_start}`
-                : `blocks ${lead.block_start}–${lead.block_end}`}
-              ) — {lead.rationale}
-            </span>
-          </div>
-        ) : null}
-
-        <dl className="mt-1 grid grid-cols-2 gap-x-8 gap-y-4 border-t border-[var(--gridline)] pt-3 sm:grid-cols-4">
+        <dl className="mt-4 grid grid-cols-2 gap-x-8 gap-y-5 sm:grid-cols-4">
           <Stat
             label="Actionable now"
             value={String(actionable.length)}
-            note={`${decisions.actions.length} scheduled today`}
+            note={`${decisions.actions.length} in the day`}
           />
           <Stat
             label="Shortfall risk"
             value={mwh(decisions.deficit_energy_mwh)}
-            note="Against P10 floor"
+            note="Against the P10 floor"
           />
           <Stat
             label="Curtailment"
             value={mwh(decisions.curtailment_energy_mwh)}
-            note="Above evacuation limit"
+            note="Above the evacuation limit"
             tone={decisions.curtailment_energy_mwh > 0 ? "negative" : undefined}
           />
           <Stat
-            label="Worst deviation"
+            label="Worst block"
             value={
               decisions.worst_block ? blockStartLabel(decisions.worst_block) : "None"
             }

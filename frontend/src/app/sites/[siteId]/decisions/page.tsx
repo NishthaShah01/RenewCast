@@ -88,7 +88,7 @@ export default async function DecisionsPage(
             label="Net cost of plan"
             value={inr(Math.abs(decisions.net_cost_inr))}
             tone={decisions.net_cost_inr < 0 ? "positive" : "negative"}
-            note={decisions.net_cost_inr < 0 ? "Cost saved" : "Additional cost"}
+            note={decisions.net_cost_inr < 0 ? "Net saving" : "Net spend"}
           />
           <Stat
             label="Shortfall risk"
@@ -103,9 +103,9 @@ export default async function DecisionsPage(
           />
           <Stat
             label="Net CO₂"
-            value={tonnes(Math.abs(decisions.net_co2_tonnes))}
+            value={tonnes(decisions.net_co2_tonnes)}
             tone={decisions.net_co2_tonnes < 0 ? "positive" : undefined}
-            note={decisions.net_co2_tonnes < 0 ? "CO₂ avoided" : "Additional CO₂"}
+            note={decisions.net_co2_tonnes < 0 ? "Avoided" : "Emitted"}
           />
         </dl>
 

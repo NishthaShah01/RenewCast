@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { RetryButton } from "./RetryButton";
 
 /**
  * The shared primitives.
@@ -186,22 +187,7 @@ export function ServiceDown({
           <p className="mt-1 max-w-[72ch] text-14 text-ink-secondary">{message}</p>
           {hint ? <p className="mt-2 max-w-[72ch] text-12 text-ink-muted">{hint}</p> : null}
           <div className="mt-3 flex items-center gap-3">
-            {onRetry ? (
-              <button
-                type="button"
-                onClick={onRetry}
-                className="rounded-control bg-[var(--ink-primary)] px-3 py-1.5 text-12 font-medium text-[var(--surface)] hover:opacity-90 active:opacity-100"
-              >
-                Retry
-              </button>
-            ) : (
-              <a
-                href=""
-                className="rounded-control bg-[var(--ink-primary)] px-3 py-1.5 text-12 font-medium text-[var(--surface)] hover:opacity-90 active:opacity-100"
-              >
-                Retry
-              </a>
-            )}
+            <RetryButton onClick={onRetry} />
             <Link
               href="/"
               className="rounded-control border border-[var(--ring)] bg-surface px-3 py-1.5 text-12 font-medium text-ink-secondary hover:bg-[var(--page)] hover:text-ink-primary"

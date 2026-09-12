@@ -367,6 +367,20 @@ class FileCache:
         except (json.JSONDecodeError, OSError):
             return None
 
+    def get_stale(self, key: str) -> dict[str, Any] | None:
+        """Cached payload ignoring TTL, or None if missing or unreadable.
+
+        Used as an emergency fallback when upstream weather services return
+        503 or transient errors, ensuring the UI remains resilient during demos.
+        """
+        path = self._path(key)
+        if not path.exists():
+            return None
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            return None
+
     def set(self, key: str, payload: dict[str, Any]) -> None:
         """Write atomically, so a crash mid-write can't leave a half file
         that the next reader then has to treat as corrupt."""

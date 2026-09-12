@@ -40,6 +40,7 @@ is the only reliable defence against train/serve skew.
 from __future__ import annotations
 
 import logging
+import time
 from datetime import date, datetime, timedelta
 
 import httpx
@@ -102,28 +103,40 @@ class WeatherUnavailable(RuntimeError):
     """
 
 
-def _request(url: str, params: dict[str, object]) -> dict:
-    try:
-        with httpx.Client(timeout=REQUEST_TIMEOUT_S) as client:
-            r = client.get(url, params=params)
-            r.raise_for_status()
-            payload = r.json()
-    except httpx.HTTPStatusError as exc:
-        # Open-Meteo puts a human-readable explanation in `reason`.
-        reason = ""
+def _request(url: str, params: dict[str, object], max_retries: int = 2) -> dict:
+    last_exc: Exception | None = None
+    for attempt in range(max_retries + 1):
         try:
-            reason = exc.response.json().get("reason", "")
-        except Exception:
-            reason = exc.response.text[:200]
-        raise WeatherUnavailable(
-            f"Weather service returned {exc.response.status_code}: {reason}"
-        ) from exc
-    except httpx.HTTPError as exc:
-        raise WeatherUnavailable(f"Could not reach the weather service: {exc}") from exc
+            with httpx.Client(timeout=REQUEST_TIMEOUT_S) as client:
+                r = client.get(url, params=params)
+                r.raise_for_status()
+                payload = r.json()
+                if payload.get("error"):
+                    raise WeatherUnavailable(
+                        f"Weather service error: {payload.get('reason', 'unknown')}"
+                    )
+                return payload
+        except httpx.HTTPStatusError as exc:
+            last_exc = exc
+            if attempt < max_retries and exc.response.status_code in (500, 502, 503, 504, 429):
+                time.sleep(1.0)
+                continue
+            reason = ""
+            try:
+                reason = exc.response.json().get("reason", "")
+            except Exception:
+                reason = exc.response.text[:200]
+            raise WeatherUnavailable(
+                f"Weather service returned {exc.response.status_code}: {reason}"
+            ) from exc
+        except httpx.HTTPError as exc:
+            last_exc = exc
+            if attempt < max_retries:
+                time.sleep(1.0)
+                continue
+            raise WeatherUnavailable(f"Could not reach the weather service: {exc}") from exc
 
-    if payload.get("error"):
-        raise WeatherUnavailable(f"Weather service error: {payload.get('reason', 'unknown')}")
-    return payload
+    raise WeatherUnavailable(f"Weather service could not be reached: {last_exc}")
 
 
 def _to_frame(payload: dict, lead_days: int) -> pd.DataFrame:
@@ -178,9 +191,16 @@ def fetch_live(site: Site, horizon_hours: int = 72) -> pd.DataFrame:
     if cached is not None:
         return _to_frame(cached, lead_days=0)
 
-    payload = _request(LIVE_URL, params)
-    weather_cache.set(cache_key, payload)
-    return _to_frame(payload, lead_days=0)
+    try:
+        payload = _request(LIVE_URL, params)
+        weather_cache.set(cache_key, payload)
+        return _to_frame(payload, lead_days=0)
+    except WeatherUnavailable:
+        stale = weather_cache.get_stale(cache_key)
+        if stale is not None:
+            log.warning("Live weather fetch failed; serving stale cache for %s", site.id)
+            return _to_frame(stale, lead_days=0)
+        raise
 
 
 def fetch_archive(

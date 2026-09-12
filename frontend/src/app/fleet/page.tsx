@@ -265,10 +265,7 @@ export default async function FleetPage() {
         </dl>
       </Panel>
 
-      {/* Sites Needing Attention (Ranked by Severity) - Primary Action Content */}
-      <SitesNeedingAttention items={attentionSites} />
-
-      {/* Technology Comparison - Quiet Secondary Breakdown */}
+      {/* Technology Comparison */}
       <TechnologyComparison
         solarCapacity={solarCapacity}
         windCapacity={windCapacity}
@@ -280,7 +277,10 @@ export default async function FleetPage() {
         windSitesCount={windSites.length}
       />
 
-      {/* Main Fleet Table - Detailed Assets */}
+      {/* Sites Needing Attention (Ranked by Severity) */}
+      <SitesNeedingAttention items={attentionSites} />
+
+      {/* Main Fleet Table */}
       <FleetTable sites={sites} fleet={fleet} siteRisks={siteRisks} />
     </div>
   );

@@ -218,7 +218,7 @@ export default function SimulatorPage() {
     }
     // Baseline zero deficit already
     else if (baseUnserved <= 0.05 && scenUnserved <= 0.05) {
-      headline = "Zero shortfall maintained across all 96 despatch blocks.";
+      headline = "Zero shortfall maintained across all 96 dispatch blocks.";
     } else {
       headline = simResult.primary_message || "Scenario plan updated.";
     }
@@ -294,14 +294,14 @@ export default function SimulatorPage() {
   }, [simResult]);
 
   return (
-    <div className="flex flex-col gap-6">
+    <main className="mx-auto w-full max-w-[1360px] px-4 sm:px-6 py-6 flex flex-col gap-6">
       {/* ── 1. Top Section ────────────────────────────────────────── */}
       <header className="flex flex-wrap items-baseline justify-between gap-4 border-b border-[var(--gridline)] pb-4">
         <div>
-          <h1 className="text-24 font-semibold tracking-[-0.01em] text-ink-primary">
+          <h1 className="text-20 font-semibold tracking-[-0.01em] text-ink-primary">
             What-if simulator
           </h1>
-          <p className="mt-1 text-14 text-ink-secondary">
+          <p className="mt-0.5 text-12 text-ink-secondary">
             Change an operating assumption and see how the plan changes.
           </p>
         </div>
@@ -486,7 +486,7 @@ export default function SimulatorPage() {
                         onChange={(e) => setBackupNoticeHours(Number(e.target.value))}
                         className="rounded-control border border-[var(--ring)] bg-surface px-2 py-1 text-11 text-ink-primary cursor-pointer focus:outline-none focus:border-ink-primary"
                       >
-                        <option value={0}>0 hours (instantaneous despatch)</option>
+                        <option value={0}>0 hours (instantaneous dispatch)</option>
                         <option value={1}>1 hour (4 time blocks)</option>
                         <option value={1.5}>1.5 hours (revision horizon)</option>
                         <option value={2}>2 hours (8 time blocks)</option>
@@ -575,7 +575,7 @@ export default function SimulatorPage() {
                 Baseline → Scenario impact
               </h2>
             </div>
-            <span className="text-11 text-ink-muted">24-hour despatch day (96 blocks)</span>
+            <span className="text-11 text-ink-muted">24-hour dispatch day (96 blocks)</span>
           </div>
 
           {/* Structured comparison table with aligned columns */}
@@ -728,7 +728,7 @@ export default function SimulatorPage() {
 
           {simResult?.actions.length === 0 ? (
             <div className="py-2 text-12 text-ink-muted">
-              No operational despatch action required under this scenario.
+              No operational dispatch action required under this scenario.
             </div>
           ) : (
             <div className="flex flex-col gap-2">
@@ -782,8 +782,8 @@ export default function SimulatorPage() {
                   >
                     <span>
                       {showFullActions
-                        ? "Hide detailed despatch plan ▴"
-                        : `View detailed despatch plan (${simResult.actions.length} actions) ▾`}
+                        ? "Hide detailed dispatch plan ▴"
+                        : `View detailed dispatch plan (${simResult.actions.length} actions) ▾`}
                     </span>
                   </button>
 
@@ -960,7 +960,7 @@ export default function SimulatorPage() {
           )}
         </section>
       </div>
-    </div>
+    </main>
   );
 }
 
@@ -1093,7 +1093,7 @@ function SimulatorTimelineChart({
             Current vs scenario
           </span>
           <span className="text-ink-muted text-11 ml-2">
-            96-block despatch timeline
+            96-block dispatch timeline
           </span>
         </div>
 
@@ -1155,7 +1155,7 @@ function SimulatorTimelineChart({
           </>
         ) : (
           <span className="text-10 text-ink-muted">
-            Hover blocks across the timeline to inspect despatch values
+            Hover blocks across the timeline to inspect dispatch values
           </span>
         )}
       </div>
