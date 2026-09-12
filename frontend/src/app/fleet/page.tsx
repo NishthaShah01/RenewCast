@@ -316,8 +316,8 @@ function TechnologyComparison({
   const windGenPct = totalP50 > 0 ? (windP50 / totalP50) * 100 : 0;
 
   // Calm, desaturated power-system operational colours
-  const SOLAR_COLOR = "#B06B45";
-  const WIND_COLOR = "#587A92";
+  const SOLAR_COLOR = "#D96868";
+  const WIND_COLOR = "#F2F2F2";
 
   return (
     <Panel
@@ -365,7 +365,7 @@ function TechnologyComparison({
               </span>
               <div className="h-2 flex-1 overflow-hidden rounded-sm bg-[var(--gridline)]">
                 <div
-                  className="h-full rounded-sm"
+                  className="h-full rounded-sm border border-[var(--baseline)]/40"
                   style={{
                     width: `${windCapPct}%`,
                     backgroundColor: WIND_COLOR,
@@ -416,7 +416,7 @@ function TechnologyComparison({
               </span>
               <div className="h-2 flex-1 overflow-hidden rounded-sm bg-[var(--gridline)]">
                 <div
-                  className="h-full rounded-sm"
+                  className="h-full rounded-sm border border-[var(--baseline)]/40"
                   style={{
                     width: `${windGenPct}%`,
                     backgroundColor: WIND_COLOR,
@@ -445,7 +445,7 @@ function TechnologyComparison({
           </div>
           <div className="flex items-center gap-2">
             <span
-              className="size-2 rounded-full"
+              className="size-2 rounded-full border border-[var(--baseline)]"
               style={{ backgroundColor: WIND_COLOR }}
               aria-hidden="true"
             />
@@ -627,9 +627,9 @@ function FleetTable({
                   <Td>
                     <span className="inline-flex items-center gap-1.5 rounded border border-[var(--gridline)] bg-[var(--page)] px-2 py-0.5 text-11 font-medium">
                       <span
-                        className="size-2 rounded-full"
+                        className="size-2 rounded-full border border-[var(--baseline)]/50"
                         style={{
-                          background: isSolar ? "#C78A00" : "#4F82B8",
+                          background: isSolar ? "#D96868" : "#F2F2F2",
                         }}
                       />
                       {technologyLabel(site.technology)}
